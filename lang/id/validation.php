@@ -1,0 +1,47 @@
+<?php
+
+// Pesan validasi Bahasa Indonesia (singkat). Hanya aturan yang dipakai aplikasi ini.
+return [
+    'array' => ':Attribute tidak valid.',
+    'between' => ['numeric' => ':Attribute harus :min–:max.'],
+    'boolean' => ':Attribute tidak valid.',
+    'confirmed' => 'Konfirmasi :attribute tidak cocok.',
+    'current_password' => 'Password salah.',
+    'date' => ':Attribute bukan tanggal yang valid.',
+    'date_format' => 'Format :attribute salah.',
+    'before_or_equal' => ':Attribute tidak boleh melewati hari ini.',
+    'email' => ':Attribute tidak valid.',
+    'exists' => ':Attribute tidak ditemukan.',
+    'in' => ':Attribute tidak valid.',
+    'integer' => ':Attribute harus angka bulat.',
+    'max' => ['string' => ':Attribute maksimal :max karakter.', 'numeric' => ':Attribute maksimal :max.', 'array' => 'Maksimal :max baris.'],
+    'min' => ['string' => ':Attribute minimal :min karakter.', 'numeric' => ':Attribute minimal :min.', 'array' => 'Minimal :min baris.'],
+    'numeric' => ':Attribute harus angka.',
+    'required' => ':Attribute wajib diisi.',
+    'string' => ':Attribute tidak valid.',
+    'unique' => ':Attribute sudah dipakai.',
+    'password' => [
+        'letters' => ':Attribute harus ada huruf.',
+        'mixed' => ':Attribute harus ada huruf besar dan kecil.',
+        'numbers' => ':Attribute harus ada angka.',
+        'symbols' => ':Attribute harus ada simbol.',
+        'uncompromised' => ':Attribute terlalu umum, ganti yang lain.',
+    ],
+
+    'attributes' => [
+        'name' => 'nama',
+        'email' => 'email',
+        'password' => 'password',
+        'password_lama' => 'password lama',
+        'role' => 'role',
+        'bidang_id' => 'bidang',
+        'jenis_kendaraan_id' => 'jenis',
+        'nomor_kendaraan' => 'nomor kendaraan',
+        'keterangan' => 'keterangan',
+        'nama' => 'nama',
+        'nama_tampil' => 'nama tampilan',
+        'urutan' => 'urutan',
+        'tanggal' => 'tanggal',
+        'rows' => 'data',
+    ],
+];

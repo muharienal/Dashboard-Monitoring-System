@@ -1,0 +1,224 @@
+DMS v2 - cara pasang
+====================
+
+Zip ini sudah mencakup semua update sebelumnya, jadi cukup pasang yang ini.
+
+0. BACKUP DATABASE DULU (HeidiSQL/Laragon: klik kanan database > Export),
+   terutama bila v2.24 belum pernah dipasang: kolom email akun diganti
+   nama pengguna.
+1. Salin semua isi zip ini ke folder dms-laravel Anda, pilih "Replace / Ganti" bila ditanya.
+2. Di Git Bash (atau terminal Laragon), dari folder dms-laravel jalankan:
+
+     php artisan migrate
+     php artisan optimize:clear
+
+   PENTING: langkah "php artisan migrate" wajib. Error
+   "Unknown column 'kendaraan.aktif_sejak'" muncul karena langkah ini
+   belum dijalankan. Sekarang, bila lupa, aplikasi akan menampilkan
+   halaman petunjuk, bukan error SQL.
+
+3. Buka lagi aplikasinya dan tekan Ctrl+F5 supaya tampilan baru termuat.
+
+Perubahan v2.31 (tidak ada tabel baru):
+  - Ukuran tombol dan kolom filter di halaman Input sekarang sama dengan
+    halaman lain (tombol kecil di kanan atas judul, kolom filter ringkas).
+  - Tombol "Excel" di semua halaman diganti "Ekspor Excel".
+  - Input Data > "Ekspor Excel" membuka jendela pilihan rentang tanggal:
+      * Pilih cepat: Tanggal ini, 7 hari terakhir, Bulan ini, Bulan lalu.
+      * Atau isi sendiri Dari tanggal ... Sampai tanggal (maks. 366 hari).
+    Isi file: SEMUA kendaraan bidang itu untuk setiap tanggal, baik yang
+    sudah diisi maupun belum (kolom Status: "Sudah diisi" / "Belum diisi";
+    jam untuk yang belum diisi dikosongkan). Kolom: Tanggal, Jenis, Nomor,
+    jam, Total, Availability, Status, Waktu simpan. Isian yang belum
+    disimpan tidak ikut; jendela mengingatkan untuk menyimpan dulu.
+    Petugas bidang hanya bisa mengekspor bidangnya sendiri.
+  - Excel di halaman Input sekarang mengikuti rentang yang dipilih (bukan
+    lagi hanya tanggal yang sedang dibuka).
+
+Perubahan v2.30 (tidak ada tabel baru):
+  - Perintah baru "php artisan dms:sinkron": sinkron data DMS lama langsung
+    dari file export .sql (tanpa impor ke server).
+  - Perintah "php artisan dms:import-legacy" aman dijalankan berulang.
+
+SINKRON DATA DMS LAMA (setiap kali DMS lama terupdate)
+  Langsung dari file export, TANPA impor ke server:
+  1. Export database DMS lama di phpMyAdmin seperti biasa (file .sql,
+     mis. tersimpan di Downloads sebagai "db_dashboard (new).sql").
+  2. Di Git Bash:
+       cd /d/dms-laravel
+       php artisan dms:sinkron
+     Otomatis memakai file db_dashboard*.sql TERBARU di folder Downloads,
+     lalu tanya "Sinkron data dari file ini?" -> tekan Enter.
+     File di tempat lain:  php artisan dms:sinkron "D:\folder\nama file.sql"
+  3. Selesai (sekitar 30 detik). Muncul ringkasan jumlah data.
+  Aman diulang kapan saja: data yang sama diperbarui (tidak dobel), data
+  baru ditambahkan, akun yang sudah ada di DMS v2 tidak diubah. File .sql
+  hanya dibaca, tidak diubah.
+
+  Alternatif (bila database DMS lama sudah ada di server yang sama):
+  jalankan query database/sql/sinkron_dms_lama.sql di phpMyAdmin.
+
+Perubahan v2.29 (tidak ada tabel baru):
+  - Beranda: kartu "Ringkasan" (kalimat) kembali. Tombol "?" sekarang di
+    Availability, Utilisasi, Jumlah unit, Kelengkapan input, dan grafik
+    Jumlah unit per hari. Panel "Input belum lengkap" tanpa "?".
+  - Laporan PDF dan semua tombol Excel (Utilisasi, Availability, Perbaikan,
+    Laporan Rekap/Detail) sekarang membuka jendela pilihan:
+      * Periode: Satu bulan, atau Beberapa bulan (Dari ... Sampai ...,
+        maksimal 24 bulan).
+      * Bidang: Semua bidang atau satu bidang.
+    Petugas bidang (akun yang sudah diberi bidang) otomatis terkunci ke
+    bidangnya sendiri; admin, manajemen, dan pemeliharaan bebas memilih.
+    Penguncian juga dicek di server, bukan hanya di tampilan.
+  - Laporan PDF beberapa bulan: tambahan tabel "Per bulan". Laporan satu
+    bidang tidak lagi mengulang tabel per bidang.
+  - Excel Riwayat tetap mengikuti filter di halaman Riwayat.
+
+Perubahan v2.28 (tidak ada tabel baru):
+  - Pemeriksaan akhir menyeluruh: hak akses setiap role, keamanan (XSS),
+    parameter aneh, instalasi dari nol, semua halaman di desktop dan HP.
+  - Perbaikan kecil: pengaturan akun admin awal (DMS_ADMIN_USERNAME /
+    DMS_ADMIN_PASSWORD) sekarang tetap terbaca walau config di-cache.
+
+Perubahan v2.27 (tidak ada tabel baru):
+  - Beranda: bagian "Arti istilah" dan kartu "Ringkasan" dihapus (isinya
+    mengulang angka di halaman). Tombol "?" tinggal di yang membingungkan:
+    Availability, Utilisasi, Kelengkapan input, Pengingat input, grafik
+    Jumlah unit per hari. Angka utama jadi satu baris berisi 6 angka.
+  - Teks dan tampilan yang berulang dirapikan di semua halaman: Perbaikan
+    (satu baris bila tidak ada perbaikan), Dashboard Bidang, Perbandingan
+    (footer yang rusak diperbaiki), Profil kendaraan, Riwayat, Input, Akun,
+    Ganti password, Login, Lupa password, Laporan PDF, dan Panduan "?".
+
+Perubahan v2.26 (tidak ada tabel baru):
+  - Beranda dibuat lengkap untuk manajemen:
+      * Ringkasan dalam kalimat (availability, utilisasi, bidang tertinggi/
+        terendah, bidang tanpa data, perbaikan, kelengkapan input).
+      * Angka utama dengan rincian (mis. "31.300 dari 34.800 jam siap pakai").
+      * Angka pendukung: rata-rata unit Jalan per hari, jam rusak, jam PM,
+        kelengkapan input bulan ini.
+      * Ringkasan per bidang: tambah kolom Unit aktif dan Kelengkapan.
+      * 5 unit dengan jam perbaikan terbanyak, 5 jenis dengan availability
+        terendah.
+      * Daftar arti istilah dan cara menghitung.
+  - Setiap judul dan angka di Beranda punya tombol "?" kecil: arahkan mouse
+    atau ketuk untuk membaca penjelasan dan rumusnya.
+
+Perubahan v2.25 (tidak ada tabel baru):
+  - Halaman login dan lupa password kembali menampilkan contoh
+    "Contoh: admin (tanpa @gmail.com)".
+
+Perubahan v2.24 (WAJIB "php artisan migrate" - struktur tabel users berubah):
+  - Akun tidak lagi memakai email. Kolom email di database diganti
+    "nama pengguna" (username).
+  - Nama pengguna diisi otomatis dari email lama (bagian sebelum @):
+    admin@gmail.com -> admin, anglu@gmail.com -> anglu, dst. Jadi semua
+    orang tetap login dengan nama yang sama, password tidak berubah.
+    Bila ada dua akun dengan nama sama, yang kedua menjadi mis. "admin2".
+  - Admin > Akun: kolom "Email" diganti "Nama pengguna" (huruf kecil, angka,
+    titik, garis bawah, strip, tanpa spasi; huruf besar otomatis dikecilkan).
+  - Bila ada yang masih mengetik email lengkap di login (admin@gmail.com),
+    tetap bisa masuk.
+  - Disarankan backup database sebelum migrate (mis. dari HeidiSQL/Laragon:
+    klik kanan database > Export). Perubahan bisa dibatalkan dengan:
+      php artisan migrate:rollback --step=1
+  - Di file .env, baris DMS_DOMAIN_LOGIN sudah tidak dipakai dan boleh
+    dihapus. DMS_ADMIN_EMAIL diganti DMS_ADMIN_USERNAME (hanya untuk
+    instalasi baru).
+
+Perubahan v2.23 (tidak ada tabel baru):
+  - Semua kolom isian punya contoh isian (placeholder) berwarna abu-abu,
+    mis. "Mis. Budi Santoso", "Minimal 8 karakter", "Ketik ulang password".
+  - Semua kolom password (login, Ganti password, Tambah/Ubah akun, Atur
+    password baru) punya tombol mata untuk melihat/menyembunyikan isian.
+    Saat jendela ditutup, password otomatis tersembunyi lagi.
+
+Perubahan v2.22 (tidak ada tabel baru):
+  - Urutan menu "Semua bidang": Utilisasi, Availability, Perbaikan, Laporan,
+    Perbandingan.
+  - Mode TV sekarang khusus Admin (menu pindah ke kelompok Admin). Role lain
+    yang membuka /tv akan ditolak. Bila sebelumnya ada layar TV yang login
+    dengan akun selain admin, login ulang di layar itu memakai akun admin.
+
+Perubahan v2.21 (tidak ada tabel baru):
+  - Tombol "Bantuan" di halaman Input dihapus; isinya dipindah ke tombol "?"
+    di samping judul halaman (atau tekan tombol ? di keyboard).
+  - Menu Riwayat sekarang muncul untuk semua role:
+      Petugas bidang  : riwayat data input bidangnya sendiri saja
+      Pemeliharaan    : riwayat data input semua bidang
+      Manajemen       : riwayat data input semua bidang
+      Admin           : semua, termasuk tab Data master dan Login
+    Profil kendaraan juga menampilkan riwayat dengan aturan yang sama.
+  - PENTING: aturan "bidangnya saja" hanya berlaku bila akun petugas sudah
+    diberi bidang. Buka Admin > Akun, klik ubah (ikon pensil) pada tiap akun
+    petugas bidang, lalu pilih Bidang-nya. Akun dengan Bidang "Semua" tetap
+    bisa melihat (dan menginput) semua bidang.
+
+Perubahan v2.20 (tidak ada tabel baru):
+  - Footer standar di semua halaman (login, lupa password, semua menu, Mode
+    TV, halaman error, laporan PDF, halaman offline):
+      DMS v2 - IT PT Petrokopindo Cipta Selaras (c) 2026
+    Tahun bisa diubah di .env:  DMS_TAHUN_HAK_CIPTA=2026
+  - Logo bertuliskan "DMS v2" (menu kiri, login, Mode TV, ikon HP).
+  - Semua teks yang menyebut DMS sekarang "DMS v2" (judul tab, konfirmasi,
+    laporan PDF, panduan, ikon di layar utama HP).
+  - Ikon di HP yang sudah dipasang sebelumnya baru berganti setelah DMS v2
+    dibuka sekali lagi (kadang perlu hapus lalu pasang ulang pintasannya).
+
+Fitur baru v2.19 (WAJIB "php artisan migrate", ada 1 tabel baru: riwayat_login):
+  - Profil kendaraan: klik nomor kendaraan di mana saja -> kalender status
+    90 hari, total jam, availability, daftar perbaikan, dan riwayat.
+  - Kotak "Cari nomor kendaraan" di menu kiri dan atas (tekan "/" untuk
+    langsung mengetik).
+  - Menu "Perbandingan": peringkat antar bidang dan kalender kelengkapan.
+  - Menu "Mode TV": layar penuh, berganti tiap 30 detik. Tombol "Tetap masuk"
+    HANYA untuk PC ruang kontrol, karena layar itu tetap login walau
+    browser ditutup.
+  - Input di HP: tampil sebagai kartu dengan tombol + / -. Bila sinyal putus,
+    isian disimpan sementara di HP dan bisa dipulihkan.
+  - Tombol "Import Excel" di halaman Input (.xlsx/.csv, kolom Nomor, Jalan,
+    Rusak, Perbaikan, PM).
+  - Admin > Riwayat > tab "Login": siapa masuk, kapan, dari perangkat apa,
+    termasuk percobaan gagal. Halaman Profil menampilkan 10 login terakhir.
+  - Keluar otomatis bila tidak ada aktivitas 2 jam (peringatan 1 menit
+    sebelumnya). Ubah di file .env:  DMS_IDLE_MENIT=120  (0 = mati),
+    lalu jalankan: php artisan optimize:clear
+  - Tombol "?" di samping judul setiap halaman (atau tekan tombol ?) untuk
+    panduan singkat.
+  - Pasang di HP (PWA): menu akun > "Pasang DMS di perangkat ini".
+    CATATAN: pemasangan penuh dan halaman offline butuh HTTPS. Lewat
+    http://laptop-3rt83m6j:8080 di jaringan kantor, gunakan menu browser
+    "Tambahkan ke layar utama" (jadi pintasan biasa). Simpan sementara saat
+    offline tetap berfungsi tanpa HTTPS.
+
+Fitur baru v2.17 (tidak ada tabel baru):
+  - Deteksi isian "kosong": bidang yang tidak punya satu unit pun berstatus
+    Jalan atau Rusak ditandai "perlu dicek" di Beranda dan diberi catatan di
+    laporan PDF bulanan.
+  - Dashboard Bidang: KPI dibanding bulan lalu (sama seperti Beranda).
+
+Fitur baru v2.15 (WAJIB "php artisan migrate", ada 1 tabel baru):
+  - KPI Beranda menampilkan perubahan dibanding bulan/tahun lalu.
+  - Grafik tren menandai tanggal yang inputnya belum lengkap (area kuning).
+  - Admin > Riwayat > tab "Data master": perubahan kendaraan, jenis, bidang, akun.
+
+Fitur baru v2.13 (WAJIB jalankan "php artisan migrate", ada 2 tabel baru):
+  - Beranda: pengingat bidang yang belum input kemarin / hari ini.
+  - Menu Admin > Riwayat: siapa mengubah angka apa, dari berapa ke berapa.
+    Riwayat mulai tercatat sejak versi ini dipasang.
+  - Tombol "Laporan PDF" di Beranda dan Laporan: laporan bulanan dengan kop,
+    di jendela cetak pilih "Simpan sebagai PDF".
+  - Login > "Lupa password?": permintaan masuk ke Admin > Akun (ada angka di menu).
+
+Login: ketik nama pengguna (mis. "admin"), tanpa @gmail.com.
+
+Alert standar: setiap aksi (simpan, hapus, nonaktifkan, ganti password,
+keluar, dll.) sekarang meminta konfirmasi dulu, lalu menampilkan notifikasi
+berhasil/gagal di kanan bawah. Komponennya ada di public/assets/js/alert.js.
+
+Opsional: file berikut sudah tidak dipakai dan boleh dihapus:
+  resources/views/dashboard/report.blade.php
+  resources/views/dashboard/general.blade.php
+  public/assets/img/bg-main.png
+
+File BACA-DULU.txt ini juga boleh dihapus setelah dibaca.
