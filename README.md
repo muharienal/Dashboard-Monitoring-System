@@ -5,6 +5,7 @@
 ```bash
 # 1. Salin folder proyek ke server, mis. E:\www\dms
 # 2. Buat file konfigurasi
+composer install
 copy .env.example .env          # (Linux: cp .env.example .env)
 php artisan key:generate
 
