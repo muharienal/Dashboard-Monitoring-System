@@ -16,11 +16,11 @@
         <span class="logo-sep" aria-hidden="true"></span>
         <img src="{{ asset('assets/img/LOGO-CORP.png') }}" alt="PT Petrokopindo Cipta Selaras" class="logo">
     </div>
-    <h1>Dashboard Management System</h1>
+    <h1>DMS</h1>
 
     <div class="v2-note" role="note">
         <span class="tag">Baru</span>
-        <span>Tampilan baru. Masuk dengan nama pengguna dan password yang sama seperti sebelumnya.</span>
+        <span>Tampilan baru dan fitur baru. Masuk dengan nama pengguna dan password yang sama seperti sebelumnya.</span>
     </div>
 
     @include('partials.flash', ['judulError' => 'Gagal masuk'])
