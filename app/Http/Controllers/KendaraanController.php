@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Bidang;
 use App\Models\JenisKendaraan;
 use App\Models\Kendaraan;
+use App\Support\IsiOtomatis;
 use App\Support\RiwayatMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -19,8 +20,8 @@ class KendaraanController extends Controller
             ->join('jenis_kendaraan as j', 'j.id', '=', 'kendaraan.jenis_kendaraan_id')
             ->join('bidang as b', 'b.id', '=', 'j.bidang_id')
             ->select('kendaraan.*', 'j.nama as jenis', 'j.bidang_id', 'b.nama_tampil as bidang', 'b.urutan')
-            ->withCount('sheetData')
-            ->withMax('sheetData', 'tanggal');
+            ->withCount(['sheetData' => fn ($q) => $q->where('otomatis', false)])
+            ->withMax(['sheetData' => fn ($q) => $q->where('otomatis', false)], 'tanggal');
 
         if ($s = $this->teks($request, 'q')) {
             $q->where(fn ($w) => $w->where('kendaraan.nomor_kendaraan', 'like', "%{$s}%")
@@ -93,6 +94,7 @@ class KendaraanController extends Controller
         $data = $request->validate($this->rules(), $this->messages());
         $k = Kendaraan::create($data + ['is_active' => true, 'nonaktif_sejak' => null]);
         RiwayatMaster::catat('kendaraan', $k->id, $k->nomor_kendaraan, 'tambah', null, RiwayatMaster::kendaraan($k));
+        IsiOtomatis::rapikan($k);
         Cache::forget('dms:data-version');
 
         return back()->with('success', "{$data['nomor_kendaraan']} ditambahkan.");
@@ -108,6 +110,7 @@ class KendaraanController extends Controller
         $sebelum = RiwayatMaster::kendaraan($kendaraan);
         $kendaraan->update($data);
         RiwayatMaster::catat('kendaraan', $kendaraan->id, $kendaraan->nomor_kendaraan, 'ubah', $sebelum, RiwayatMaster::kendaraan($kendaraan->fresh()));
+        IsiOtomatis::rapikan($kendaraan);
         Cache::forget('dms:data-version');
 
         return back()->with('success', "{$kendaraan->nomor_kendaraan} disimpan.");
@@ -120,6 +123,7 @@ class KendaraanController extends Controller
             $sebelum = RiwayatMaster::kendaraan($kendaraan);
             $kendaraan->update(['is_active' => true, 'nonaktif_sejak' => null]);
             RiwayatMaster::catat('kendaraan', $kendaraan->id, $kendaraan->nomor_kendaraan, 'aktif', $sebelum, RiwayatMaster::kendaraan($kendaraan->fresh()));
+            IsiOtomatis::rapikan($kendaraan);
             Cache::forget('dms:data-version');
 
             return back()->with('success', "{$kendaraan->nomor_kendaraan} diaktifkan kembali.");
@@ -140,9 +144,10 @@ class KendaraanController extends Controller
             'keterangan' => ($data['keterangan'] ?? null) ?: $kendaraan->keterangan,
         ]);
         RiwayatMaster::catat('kendaraan', $kendaraan->id, $kendaraan->nomor_kendaraan, 'nonaktif', $sebelum, RiwayatMaster::kendaraan($kendaraan->fresh()));
+        IsiOtomatis::rapikan($kendaraan); // data otomatis mulai tanggal nonaktif dihapus
         Cache::forget('dms:data-version');
 
-        $sesudah = $kendaraan->sheetData()->where('tanggal', '>=', $data['nonaktif_sejak'])->count();
+        $sesudah = $kendaraan->sheetData()->where('otomatis', false)->where('tanggal', '>=', $data['nonaktif_sejak'])->count();
         $pesan = "{$kendaraan->nomor_kendaraan} nonaktif mulai ".Carbon::parse($data['nonaktif_sejak'])->translatedFormat('j F Y').'. Riwayatnya tetap tersimpan.';
         if ($sesudah) {
             $pesan .= " Ada {$sesudah} hari data setelah tanggal itu yang tetap disimpan.";
@@ -153,11 +158,15 @@ class KendaraanController extends Controller
 
     public function destroy(Kendaraan $kendaraan)
     {
-        if ($kendaraan->sheetData()->exists()) {
+        // Baris otomatis (Standby 24 jam dari sistem) bukan riwayat isian, jadi tidak menghalangi hapus.
+        if ($kendaraan->sheetData()->where('otomatis', false)->exists()) {
             return back()->with('error', "{$kendaraan->nomor_kendaraan} punya riwayat, tidak bisa dihapus. Nonaktifkan saja.");
         }
         $sebelum = RiwayatMaster::kendaraan($kendaraan);
-        $kendaraan->delete();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($kendaraan) {
+            $kendaraan->sheetData()->where('otomatis', true)->delete();
+            $kendaraan->delete();
+        });
         RiwayatMaster::catat('kendaraan', $kendaraan->id, $kendaraan->nomor_kendaraan, 'hapus', $sebelum);
         Cache::forget('dms:data-version');
 

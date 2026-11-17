@@ -115,7 +115,7 @@ ON DUPLICATE KEY UPDATE
     `jalan` = VALUES(`jalan`), `standby` = VALUES(`standby`), `rusak` = VALUES(`rusak`), `perbaikan` = VALUES(`perbaikan`), `pm` = VALUES(`pm`),
     `total_jam_kerja` = VALUES(`total_jam_kerja`), `availability_rate` = VALUES(`availability_rate`),
     `utilitas_jalan` = VALUES(`utilitas_jalan`), `utilitas_standby` = VALUES(`utilitas_standby`), `utilitas_rusak` = VALUES(`utilitas_rusak`),
-    `updated_at` = VALUES(`updated_at`);
+    `updated_at` = VALUES(`updated_at`), `otomatis` = 0;  -- data otomatis (Standby 24 jam) diganti data DMS lama
 
 -- 6. Periode aktif kendaraan yang masih kosong ------------------------------------------------
 --    aktif_sejak = tanggal data pertama (atau tanggal dibuat); kendaraan non-aktif: nonaktif_sejak = sehari setelah data terakhir

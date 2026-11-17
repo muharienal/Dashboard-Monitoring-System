@@ -13,7 +13,7 @@ class SheetData extends Model
         'tanggal', 'kendaraan_id', 'bidang_id', 'jenis_kendaraan_id',
         'jalan', 'standby', 'rusak', 'perbaikan', 'pm', 'total_jam_kerja',
         'availability_rate', 'utilitas_jalan', 'utilitas_standby', 'utilitas_rusak',
-        'created_by', 'updated_by',
+        'otomatis', 'created_by', 'updated_by',
     ];
 
     protected function casts(): array
@@ -21,6 +21,7 @@ class SheetData extends Model
         return [
             'tanggal' => 'date:Y-m-d',
             'availability_rate' => 'float',
+            'otomatis' => 'boolean',
         ];
     }
 

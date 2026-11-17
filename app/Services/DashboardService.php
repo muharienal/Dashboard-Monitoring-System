@@ -264,13 +264,15 @@ class DashboardService
                 SUM(s.utilitas_jalan) uj, COUNT(*) unit_hari, COUNT(DISTINCT s.tanggal) hari, MAX(s.updated_at) terakhir')
             ->groupBy('s.bidang_id')->get()->keyBy('bidang_id');
 
+        // Bidang yang belum disimpan petugas sama sekali (hanya baris otomatis) dihitung belum terisi.
         $terisi = DB::table('sheet_data')->where('tanggal', $tanggalCek)
-            ->selectRaw('bidang_id, COUNT(*) c')->groupBy('bidang_id')->pluck('c', 'bidang_id');
+            ->selectRaw('bidang_id, COUNT(*) c, SUM(CASE WHEN otomatis = 0 THEN 1 ELSE 0 END) d')->groupBy('bidang_id')->get()
+            ->mapWithKeys(fn ($r) => [$r->bidang_id => (int) $r->d > 0 ? (int) $r->c : 0]);
 
         $aktif = DB::table('kendaraan as k')->join('jenis_kendaraan as j', 'j.id', '=', 'k.jenis_kendaraan_id')
             ->where('k.is_active', true)->selectRaw('j.bidang_id, COUNT(*) c')->groupBy('j.bidang_id')->pluck('c', 'bidang_id');
 
-        $terakhirInput = DB::table('sheet_data')->selectRaw('bidang_id, MAX(tanggal) t, MAX(updated_at) u')
+        $terakhirInput = DB::table('sheet_data')->where('otomatis', false)->selectRaw('bidang_id, MAX(tanggal) t, MAX(updated_at) u')
             ->groupBy('bidang_id')->get()->keyBy('bidang_id');
 
         return Bidang::ordered()->map(function (Bidang $b) use ($agg, $terisi, $aktif, $terakhirInput) {
@@ -302,11 +304,12 @@ class DashboardService
     {
         $per = DB::table('sheet_data as s')
             ->whereBetween('s.tanggal', [sprintf('%04d-%02d-01', $tahun, $bulan), \Carbon\CarbonImmutable::create($tahun, $bulan, 1)->endOfMonth()->toDateString()])
-            ->selectRaw('s.bidang_id, s.tanggal, COUNT(*) n, SUM(CASE WHEN s.jalan = 0 AND s.rusak = 0 THEN 1 ELSE 0 END) k')
+            ->selectRaw('s.bidang_id, s.tanggal, COUNT(*) n, SUM(CASE WHEN s.jalan = 0 AND s.rusak = 0 THEN 1 ELSE 0 END) k, SUM(CASE WHEN s.otomatis = 0 THEN 1 ELSE 0 END) d')
             ->groupBy('s.bidang_id', 's.tanggal')->orderBy('s.tanggal')->get()->groupBy('bidang_id');
 
         return Bidang::ordered()->mapWithKeys(function (Bidang $b) use ($per) {
-            $rows = $per->get($b->id, collect());
+            // Tanggal yang belum disimpan petugas (hanya baris otomatis) = belum diisi, bukan isian kosong.
+            $rows = $per->get($b->id, collect())->filter(fn ($r) => (int) $r->d > 0);
             $kosong = $rows->filter(fn ($r) => (int) $r->n > 0 && (int) $r->k === (int) $r->n);
 
             return [$b->kode => [
@@ -369,9 +372,17 @@ class DashboardService
             $selisih[(int) $awal->diffInDays($mulai)]++;
             $selisih[(int) $awal->diffInDays($selesai) + 1]--;
         }
-        $terisi = $this->withJenis($this->base($f), $f)
-            ->selectRaw('s.tanggal t, COUNT(*) c')->groupBy('s.tanggal')->pluck('c', 't')
-            ->mapWithKeys(fn ($c, $t) => [substr((string) $t, 0, 10) => (int) $c]);
+        // Per bidang per tanggal: baru dihitung terisi bila sudah ada yang disimpan petugas (bukan hanya baris otomatis).
+        $terisi = [];
+        $per = $this->withJenis($this->base($f), $f)
+            ->selectRaw('s.tanggal t, s.bidang_id b, COUNT(*) c, SUM(CASE WHEN s.otomatis = 0 THEN 1 ELSE 0 END) d')
+            ->groupBy('s.tanggal', 's.bidang_id')->get();
+        foreach ($per as $r) {
+            if ((int) $r->d > 0) {
+                $t = substr((string) $r->t, 0, 10);
+                $terisi[$t] = ($terisi[$t] ?? 0) + (int) $r->c;
+            }
+        }
 
         $hasil = [];
         $aktif = 0;
@@ -464,7 +475,8 @@ class DashboardService
                 ->leftJoin('sheet_data as s', fn ($on) => $on->on('s.kendaraan_id', '=', 'k.id')->where('s.tanggal', '=', $t))
                 ->where(fn ($w) => $w->whereNull('k.aktif_sejak')->orWhereDate('k.aktif_sejak', '<=', $t))
                 ->where(fn ($w) => $w->whereNull('k.nonaktif_sejak')->orWhereDate('k.nonaktif_sejak', '>', $t))
-                ->selectRaw('j.bidang_id, COUNT(*) unit, COUNT(s.id) terisi, SUM(CASE WHEN s.jalan = 0 AND s.rusak = 0 THEN 1 ELSE 0 END) tanpa_jr')
+                ->selectRaw('j.bidang_id, COUNT(*) unit, COUNT(s.id) terisi, SUM(CASE WHEN s.otomatis = 0 THEN 1 ELSE 0 END) diisi,
+                    SUM(CASE WHEN s.jalan = 0 AND s.rusak = 0 THEN 1 ELSE 0 END) tanpa_jr')
                 ->groupBy('j.bidang_id')->get()->keyBy('bidang_id');
 
             $hasil[] = [
@@ -472,8 +484,10 @@ class DashboardService
                 'bidang' => $bidang->map(function (Bidang $b) use ($q, $user) {
                     $r = $q->get($b->id);
                     $unit = (int) ($r->unit ?? 0);
-                    $terisi = (int) ($r->terisi ?? 0);
-                    $tanpaJr = (int) ($r->tanpa_jr ?? 0);
+                    // Bidang yang belum disimpan petugas sama sekali (hanya baris otomatis Standby) = belum diisi.
+                    $diisi = (int) ($r->diisi ?? 0);
+                    $terisi = $diisi > 0 ? (int) ($r->terisi ?? 0) : 0;
+                    $tanpaJr = $diisi > 0 ? (int) ($r->tanpa_jr ?? 0) : 0;
 
                     return [
                         'kode' => $b->kode,
@@ -522,8 +536,10 @@ class DashboardService
                 }
             }
         }
+        // Tanggal yang hanya berisi baris otomatis (belum disimpan petugas) dihitung belum terisi.
         $terisi = DB::table('sheet_data')->whereBetween('tanggal', [$awal->toDateString(), $awal->endOfMonth()->toDateString()])
-            ->selectRaw('bidang_id, COUNT(*) c')->groupBy('bidang_id')->pluck('c', 'bidang_id');
+            ->selectRaw('bidang_id, tanggal, COUNT(*) c, SUM(CASE WHEN otomatis = 0 THEN 1 ELSE 0 END) d')->groupBy('bidang_id', 'tanggal')->get()
+            ->filter(fn ($r) => (int) $r->d > 0)->groupBy('bidang_id')->map(fn ($g) => $g->sum('c'));
 
         return Bidang::ordered()->mapWithKeys(function (Bidang $b) use ($seharusnya, $terisi) {
             $harus = (int) ($seharusnya[$b->id] ?? 0);

@@ -16,7 +16,7 @@
         <span class="logo-sep" aria-hidden="true"></span>
         <img src="{{ asset('assets/img/LOGO-CORP.png') }}" alt="PT Petrokopindo Cipta Selaras" class="logo">
     </div>
-    <h1>DMS</h1>
+    <h1>DMS v2</h1>
 
     <div class="v2-note" role="note">
         <span class="tag">Baru</span>

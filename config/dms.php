@@ -9,6 +9,8 @@ return [
     // Akun admin awal (hanya dipakai seeder / impor data lama)
     'admin_username' => env('DMS_ADMIN_USERNAME', 'admin'),
     'admin_password' => env('DMS_ADMIN_PASSWORD', 'Admin#12345'),
+    // Data harian otomatis (Standby 24 jam) mulai tanggal ini. Kosong = pakai tanggal yang dicatat saat migrasi (awal bulan).
+    'isi_otomatis_sejak' => env('DMS_ISI_OTOMATIS_SEJAK'),
     'perusahaan' => env('DMS_PERUSAHAAN', 'PT Petrokopindo Cipta Selaras'),
     // Interval polling realtime dashboard (detik)
     'refresh_detik' => (int) env('DMS_REFRESH_DETIK', 15),

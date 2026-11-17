@@ -11,7 +11,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->web(append: [\App\Http\Middleware\EnsureDatabaseIsMigrated::class, \App\Http\Middleware\KeluarJikaTidakAktif::class]);
+        $middleware->web(append: [\App\Http\Middleware\EnsureDatabaseIsMigrated::class, \App\Http\Middleware\KeluarJikaTidakAktif::class, \App\Http\Middleware\IsiDataOtomatis::class]);
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,

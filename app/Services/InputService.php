@@ -49,26 +49,29 @@ class InputService
                 'jenis' => $k->jenis,
                 'nomor' => $k->nomor_kendaraan,
                 'aktif' => $k->aktifPada($tanggal),
-                'tersimpan' => (bool) $s,
+                // Baris otomatis (Standby 24 jam dari sistem) dianggap belum diisi petugas.
+                'tersimpan' => $s && ! $s->otomatis,
+                'otomatis' => (bool) $s?->otomatis,
                 'jalan' => $s->jalan ?? 0,
                 'standby' => $s->standby ?? JamKerja::JAM_PER_HARI,
                 'rusak' => $s->rusak ?? 0,
                 'perbaikan' => $s->perbaikan ?? 0,
                 'pm' => $s->pm ?? 0,
                 'total_jam_kerja' => $s->total_jam_kerja ?? JamKerja::JAM_PER_HARI,
-                'diperbarui' => $s?->updated_at?->format('Y-m-d H:i:s'),
-                'oleh' => $s?->updater?->name,
+                'diperbarui' => $s && ! $s->otomatis ? $s->updated_at?->format('Y-m-d H:i:s') : null,
+                'oleh' => $s && ! $s->otomatis ? $s->updater?->name : null,
             ];
         })->sort(fn ($a, $b) => strnatcasecmp($a['nomor'], $b['nomor']) ?: strcmp($a['jenis'], $b['jenis']))->values();
 
-        $last = $existing->sortByDesc('updated_at')->first();
+        $diisi = $existing->reject(fn ($s) => $s->otomatis);
+        $last = $diisi->sortByDesc('updated_at')->first();
 
         return [
             'tanggal' => $tanggal,
             'bidang' => ['kode' => $bidang->kode, 'nama' => $bidang->nama_tampil],
             'kolom_edit' => $user->editableColumns($bidang),
             'rows' => $rows,
-            'jumlah_tersimpan' => $existing->count(),
+            'jumlah_tersimpan' => $diisi->count(),
             'terakhir' => $last ? ['waktu' => $last->updated_at->format('Y-m-d H:i:s'), 'oleh' => $last->updater?->name] : null,
             'terakhir_bidang' => $this->lastUpdated($bidang),
         ];
@@ -76,7 +79,7 @@ class InputService
 
     public function lastUpdated(Bidang $bidang): ?array
     {
-        $r = SheetData::where('bidang_id', $bidang->id)->orderByDesc('updated_at')->with('updater:id,name')
+        $r = SheetData::where('bidang_id', $bidang->id)->where('otomatis', false)->orderByDesc('updated_at')->with('updater:id,name')
             ->first(['id', 'tanggal', 'updated_at', 'updated_by']);
 
         return $r ? ['waktu' => $r->updated_at->format('Y-m-d H:i:s'), 'tanggal' => $r->tanggal->format('Y-m-d'), 'oleh' => $r->updater?->name] : null;
@@ -191,7 +194,15 @@ class InputService
                 ];
             };
             foreach ($toSave as [$k, $s, $hasil]) {
-                if ($s) {
+                if ($s && $s->otomatis) {
+                    // Baris otomatis (Standby 24 jam) yang disimpan petugas: dicatat sebagai isian pertama,
+                    // walaupun angkanya tidak berubah (petugas memastikan unit memang Standby).
+                    $s->fill($hasil + ['otomatis' => false, 'created_by' => $user->id, 'updated_by' => $user->id]);
+                    $s->save();
+                    $s->setRelation('kendaraan', $k);
+                    $catat($s, 'buat', null);
+                    $dibuat++;
+                } elseif ($s) {
                     $sebelum = array_map('intval', $s->only(self::KOLOM_RIWAYAT));
                     $s->fill($hasil);
                     if ($s->isDirty()) {

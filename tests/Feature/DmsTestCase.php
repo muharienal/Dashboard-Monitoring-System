@@ -23,6 +23,8 @@ abstract class DmsTestCase extends TestCase
     {
         parent::setUp();
         $this->seed();
+        // Data harian otomatis dimatikan untuk tes lama (tes IsiOtomatisTest menyalakannya sendiri).
+        \Illuminate\Support\Facades\DB::table('pengaturan')->where('kunci', 'isi_otomatis_sejak')->update(['nilai' => null]);
         $this->anglu = Bidang::where('kode', 'angkutan-luar')->first();
         $this->wil2 = Bidang::where('kode', 'alber-wil-2')->first();
         $dt = JenisKendaraan::where('bidang_id', $this->anglu->id)->where('nama', 'DUMP TRUK B3')->first();

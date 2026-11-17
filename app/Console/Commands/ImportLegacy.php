@@ -190,6 +190,7 @@ class ImportLegacy extends Command
         // Periode aktif: mulai = data pertama, nonaktif = sehari setelah data terakhir (kendaraan dari data lama)
         Kendaraan::isiPeriodeAktifKosong();
         Cache::forget('dms:data-version');
+        \App\Support\IsiOtomatis::lupakan(); // kendaraan baru dari DMS lama ikut diisi otomatis
 
         $this->table(['Keterangan', 'Jumlah'], [
             ['Baris sheet_data diimpor', $this->stat['diimpor']],
@@ -281,7 +282,7 @@ class ImportLegacy extends Command
 
         return $h + [
             'tanggal' => $tanggal, 'kendaraan_id' => $kid, 'bidang_id' => $bid, 'jenis_kendaraan_id' => $jid,
-            'created_by' => null, 'updated_by' => null, 'created_at' => $updatedAt, 'updated_at' => $updatedAt,
+            'created_by' => null, 'updated_by' => null, 'created_at' => $updatedAt, 'updated_at' => $updatedAt, 'otomatis' => false,
         ];
     }
 
@@ -291,7 +292,7 @@ class ImportLegacy extends Command
             return;
         }
         $cols = ['bidang_id', 'jenis_kendaraan_id', 'jalan', 'standby', 'rusak', 'perbaikan', 'pm', 'total_jam_kerja',
-            'availability_rate', 'utilitas_jalan', 'utilitas_standby', 'utilitas_rusak', 'updated_at'];
+            'availability_rate', 'utilitas_jalan', 'utilitas_standby', 'utilitas_rusak', 'updated_at', 'otomatis'];
         foreach (array_chunk($batch, 500) as $part) {
             DB::table('sheet_data')->upsert($part, ['kendaraan_id', 'tanggal'], $cols);
         }
@@ -306,7 +307,7 @@ class ImportLegacy extends Command
         $batch = [];
         foreach ($rows as $r) {
             [$kid] = $this->kendaraanId($r->bidang, trim($r->jenis_kendaraan), trim($r->nomor_kendaraan), false);
-            if (DB::table('sheet_data')->where('kendaraan_id', $kid)->where('tanggal', $r->tanggal)->exists()) {
+            if (DB::table('sheet_data')->where('kendaraan_id', $kid)->where('tanggal', $r->tanggal)->where('otomatis', false)->exists()) {
                 continue;
             }
             $row = $this->mapRow($r->bidang, $r->jenis_kendaraan, $r->nomor_kendaraan, $r->tanggal, (int) $r->jalan,
