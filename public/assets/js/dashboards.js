@@ -163,67 +163,46 @@
     tulis(el.perbaikan, a.unit_hari ? a.jam.PERBAIKAN : null, b.unit_hari ? b.jam.PERBAIKAN : null, 'jam', -1, false);
   }
 
-  /** Keterangan di bawah grafik tren: berapa tanggal/bulan yang inputnya belum lengkap. */
-  function catatanKelengkapan(el, rows, satuan) {
-    if (!el) return;
-    const kurang = rows.filter((r) => r.lengkap === false);
-    if (!kurang.length) { el.innerHTML = ''; return; }
-    const kosong = kurang.filter((r) => !r.unit_hari).length;
-    el.innerHTML = `<span class="tc-swatch" aria-hidden="true"></span><span>Area kuning: <b>${kurang.length} ${satuan}</b> belum lengkap${kosong ? ` (${kosong} belum diisi sama sekali)` : ''}, angkanya belum final.</span>`;
-  }
-
-  /** Pengingat input belum lengkap (kemarin & hari ini) di Beranda. */
+  /** Update input harian per bidang (kemarin lusa, kemarin & hari ini) di Beranda: kapan terakhir petugas menyimpan. */
   function renderKelengkapan(kl) {
     const box = $('#kelengkapan');
     if (!box || !kl || !kl.length) return;
     const hariIni = kl[kl.length - 1].tanggal;
-    const judulTgl = (t) => `${t === hariIni ? 'Hari ini' : 'Kemarin'}, ${DMS.periodeLabel(t)}`;
-    const kurang = kl.some((h) => h.bidang.some((b) => b.belum > 0));
-    // Isian "kosong": tidak ada satu unit pun yang tercatat Jalan atau Rusak → kolom bagian Bidang belum diisi.
-    const curiga = kl.some((h) => h.bidang.some((b) => b.curiga_kosong));
-    const kemarinKurang = kl.length > 1 && kl[0].bidang.some((b) => b.belum > 0);
+    const nama = ['Kemarin lusa', 'Kemarin', 'Hari ini'].slice(-kl.length);
+    const judulTgl = (t) => `${nama[kl.findIndex((h) => h.tanggal === t)]}, ${DMS.periodeLabel(t)}`;
+    const jam = (iso) => iso.slice(11, 16).replace(':', '.');
+    // Jam saja bila disimpan di hari yang sama; selain itu sertakan tanggal simpan.
+    const waktu = (h, iso) => (iso.slice(0, 10) === h.tanggal ? jam(iso) : `${DMS.periodeLabel(iso.slice(0, 10))} ${jam(iso)}`);
+    const adaUnit = (b) => b.unit > 0;
+    const kemarinBelum = kl.slice(0, -1).some((h) => h.bidang.some((b) => adaUnit(b) && !b.terakhir));
+    const semuaUpdate = kl.every((h) => h.bidang.every((b) => !adaUnit(b) || b.terakhir));
     box.classList.remove('d-none');
-    box.classList.toggle('ok', !kurang && !curiga);
-    box.classList.toggle('warn', kemarinKurang || curiga);
-    if (!kurang && !curiga) {
-      const okHtml = `<div class="kl-atas"><div class="kl-head"><span class="kl-ikon" aria-hidden="true"><i class="fas fa-circle-check"></i></span>
-        <div><strong id="klJudul">Input lengkap</strong><span>Semua bidang sudah mengisi data kemarin dan hari ini.</span></div></div></div>`;
-      if (box.dataset.html !== okHtml) { box.innerHTML = okHtml; box.dataset.html = okHtml; DMS.pasangInfo(box); }
-      return;
-    }
-    const tandaKosong = (b) => b.curiga_kosong
-      ? `<small class="kl-curiga"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Tidak ada unit Jalan/Rusak</small>` : '';
+    box.classList.toggle('ok', semuaUpdate);
+    box.classList.toggle('warn', kemarinBelum);
+    const link = (h, b, teks, kelas) => (b.bisa_input
+      ? `<a class="btn btn-sm ${kelas}" href="${window.PAGE.inputBase}/${b.kode}?tanggal=${h.tanggal}">${teks}</a>` : '');
     const sel = (h, b) => {
-      if (!b.unit) return '<span class="kl-none">Tidak ada unit</span>';
-      if (!b.belum && b.curiga_kosong) {
-        const periksa = b.bisa_input ? `<a class="btn btn-sm btn-gold" href="${window.PAGE.inputBase}/${b.kode}?tanggal=${h.tanggal}">Periksa</a>` : '';
-        return `<div class="kl-sel telat lebar"><div class="kl-angka"><b>Terisi, perlu dicek</b>${tandaKosong(b)}</div>${periksa}</div>`;
+      if (!adaUnit(b)) return '<span class="kl-none">Tidak ada unit</span>';
+      if (b.terakhir) {
+        return `<div class="kl-sel lebar"><div class="kl-angka"><b>Diperbarui ${waktu(h, b.terakhir)}</b>${b.oleh ? `<small>oleh ${DMS.esc(b.oleh)}</small>` : ''}</div>${link(h, b, 'Buka', 'btn-outline-secondary')}</div>`;
       }
-      if (!b.belum) return '<span class="kl-ok"><i class="fas fa-check" aria-hidden="true"></i> Lengkap</span>';
-      const pct = Math.round(b.terisi / b.unit * 100);
-      const link = b.bisa_input ? `<a class="btn btn-sm ${h.tanggal === hariIni ? 'btn-outline-secondary' : 'btn-gold'}" href="${window.PAGE.inputBase}/${b.kode}?tanggal=${h.tanggal}">Isi</a>` : '';
-      return `<div class="kl-sel ${h.tanggal === hariIni ? 'jalan' : 'telat'}">
-          <div class="kl-angka"><b>${DMS.num(b.belum)} unit belum</b><small>${DMS.num(b.terisi)} dari ${DMS.num(b.unit)} terisi</small>${tandaKosong(b)}</div>
-          <span class="kl-bar" role="img" aria-label="${pct}% terisi"><span style="width:${pct}%"></span></span>${link}</div>`;
+      return `<div class="kl-sel lebar ${h.tanggal === hariIni ? 'jalan' : 'telat'}"><div class="kl-angka"><b>Belum ada update</b></div>${link(h, b, 'Isi', h.tanggal === hariIni ? 'btn-outline-secondary' : 'btn-gold')}</div>`;
     };
-    const bidang = kl[0].bidang.map((b, i) => ({ nama: b.nama, sel: kl.map((h) => [h, h.bidang[i]]) }))
-      .filter((r) => r.sel.some(([, b]) => b.belum > 0 || b.curiga_kosong));
-    // Ringkasan satu baris: total unit belum per hari + jumlah bidang. Rincian per bidang dibuka lewat klik.
-    const nCuriga = kl[0].bidang.filter((b, i) => kl.some((h) => h.bidang[i].curiga_kosong)).length;
-    const ringkas = kl.map((h) => {
-      const n = h.bidang.reduce((s, b) => s + b.belum, 0);
-      return `${h.tanggal === hariIni ? 'Hari ini' : 'Kemarin'} <b>${n ? DMS.num(n) + ' unit belum' : 'lengkap'}</b>`;
-    }).join(' · ') + (nCuriga ? ` · <b>${nCuriga} bidang tanpa Jalan & Rusak</b>` : ` · ${bidang.length} bidang`);
+    const bidang = kl[0].bidang.map((b, i) => ({ nama: b.nama, sel: kl.map((h) => [h, h.bidang[i]]) }));
+    // Ringkasan satu baris: update terakhir hari ini. Rincian per bidang dibuka lewat klik.
+    const terbaru = kl[kl.length - 1].bidang.filter((b) => b.terakhir).sort((x, y) => (x.terakhir < y.terakhir ? 1 : -1))[0];
+    const ringkas = terbaru
+      ? `Update terakhir hari ini <b>${jam(terbaru.terakhir)}</b> · ${DMS.esc(terbaru.nama)}${terbaru.oleh ? ' oleh ' + DMS.esc(terbaru.oleh) : ''}`
+      : 'Hari ini <b>belum ada update</b>';
     const buka = klTerbuka();
     box.classList.toggle('terbuka', buka);
     const html = `<div class="kl-atas"><button type="button" class="kl-head kl-toggle" aria-expanded="${buka}" aria-controls="klIsi">
         <span class="kl-ikon" aria-hidden="true"><i class="fas fa-clipboard-list"></i></span>
-        <span class="kl-teks"><strong id="klJudul">${kurang ? 'Input belum lengkap' : 'Input perlu dicek'}</strong><span>${ringkas}</span></span>
+        <span class="kl-teks"><strong id="klJudul">Update input harian</strong><span>${ringkas}</span></span>
         <span class="kl-aksi">${buka ? 'Tutup' : 'Lihat bidang'} <i class="fas fa-chevron-down" aria-hidden="true"></i></span></button></div>
-      <div class="kl-tabel" id="klIsi" role="table" aria-label="Kelengkapan input per bidang" ${buka ? '' : 'hidden'}>
-        <div class="kl-catatan">Angka dashboard untuk tanggal yang belum lengkap belum final.${curiga ? ' Bidang yang tidak punya satu unit pun berstatus Jalan atau Rusak kemungkinan belum mengisi kolom Jalan & Rusak; Availability-nya bisa tampak lebih tinggi dan Utilisasi-nya 0%.' : ''}</div>
-        <div class="kl-baris kl-kepala" role="row"><span role="columnheader">Bidang</span>${kl.map((h) => `<span role="columnheader">${judulTgl(h.tanggal)}</span>`).join('')}</div>
-        ${bidang.map((r) => `<div class="kl-baris" role="row"><span class="kl-nama" role="rowheader">${DMS.esc(r.nama)}</span>
+      <div class="kl-tabel" id="klIsi" role="table" aria-label="Update input per bidang" ${buka ? '' : 'hidden'}>
+        <div class="kl-baris kl-kepala" role="row" style="--kl-hari:${kl.length}"><span role="columnheader">Bidang</span>${kl.map((h) => `<span role="columnheader">${judulTgl(h.tanggal)}</span>`).join('')}</div>
+        ${bidang.map((r) => `<div class="kl-baris" role="row" style="--kl-hari:${kl.length}"><span class="kl-nama" role="rowheader">${DMS.esc(r.nama)}</span>
           ${r.sel.map(([h, b]) => `<div role="cell" data-l="${judulTgl(h.tanggal)}">${sel(h, b)}</div>`).join('')}</div>`).join('')}
       </div>`;
     if (box.dataset.html !== html) {
@@ -281,7 +260,7 @@
   }
 
   /** Ringkasan Beranda dalam kalimat untuk manajemen (dibangun dari data yang sama dengan angka di halaman). */
-  function ringkasanBeranda(d, kp) {
+  function ringkasanBeranda(d) {
     const a = d.availability, p = d.pembanding, b = p?.availability;
     if (!a.unit_hari) return ['<span class="text-secondary">Belum ada data untuk periode ini. Pilih bulan lain di filter, atau pastikan petugas sudah menginput.</span>'];
     const out = [];
@@ -296,7 +275,7 @@
       return ` (<span class="${baik ? 'rk-baik' : 'rk-buruk'}">${sel > 0 ? 'naik' : 'turun'} ${angka} ${satuan}</span> dibanding ${DMS.esc(p.label)})`;
     };
     out.push(`Availability armada <b>${DMS.pct(a.availability_rate)}</b>${banding(a.availability_rate, b?.availability_rate, 'poin', 1)}. Dari ${DMS.num(a.total_jam)} jam tercatat, ${DMS.num((a.jam.JALAN || 0) + (a.jam.STANDBY || 0))} jam unit dalam kondisi siap pakai.`);
-    out.push(`Utilisasi <b>${DMS.pct(a.utilisasi)}</b>${banding(a.utilisasi, b?.utilisasi, 'poin', 1)}. Rata-rata <b>${DMS.unit(a.avg_jalan)} unit Jalan per hari</b> dari ${DMS.num(a.unit)} unit tercatat.`);
+    out.push(`Utilisasi <b>${DMS.pct(a.utilisasi)}</b>${banding(a.utilisasi, b?.utilisasi, 'poin', 1)}. Rata-rata <b>${DMS.unit(a.avg_jalan)} unit Jalan per hari</b> dari ${DMS.num(a.unit)} unit.`);
     const adaData = d.bidang.filter((x) => x.availability_rate !== null);
     if (adaData.length > 1) {
       const urut = [...adaData].sort((x, y) => y.availability_rate - x.availability_rate);
@@ -317,11 +296,6 @@
     if ((a.jam.RUSAK || 0) > 0) out.push(`Jam rusak <b>${DMS.num(a.jam.RUSAK)} jam</b> (${DMS.num1(a.jam.RUSAK / a.total_jam * 100)}% dari total jam).`);
     const jr = d.jenis_terendah?.[0];
     if (jr && d.jenis_jumlah > 1) out.push(`Jenis dengan availability terendah: <b>${DMS.esc(jr.jenis)}</b> (${DMS.pct(jr.availability_rate)}).`);
-    if (kp && kp.persen !== null) {
-      out.push(kp.persen >= 100
-        ? '<span class="rk-baik">Input bulan ini sudah lengkap</span>, angka di atas sudah final.'
-        : `Kelengkapan input <b>${DMS.pct(kp.persen)}</b> (${DMS.num(kp.seharusnya - kp.terisi)} unit-hari belum diisi), jadi <span class="rk-buruk">angka di atas belum final</span>.`);
-    }
     return out;
   }
 
@@ -332,7 +306,6 @@
       const qs = () => DMS.filterParams($('#filterForm')).toString();
       boot(P.url, (d) => {
         const a = d.availability, p = d.pembanding?.availability, ada = a.unit_hari > 0;
-        const kp = d.kelengkapan_periode;
         $('#periodeLbl').textContent = d.filter.label;
         $('#rkPeriode').textContent = d.filter.label;
         $('#rkDiperbarui').textContent = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -346,14 +319,10 @@
         const ujalan = Math.round((a.utilisasi || 0) / 100 * a.unit_hari);
         $('#xAr').innerHTML = ada ? `${DMS.num(siap)} dari ${DMS.num(a.total_jam)} jam siap pakai` : '';
         $('#xUtil').innerHTML = ada ? `${DMS.num(ujalan)} dari ${DMS.num(a.unit_hari)} unit-hari berstatus Jalan` : '';
-        $('#xUnit').innerHTML = ada ? `tercatat selama ${DMS.num(a.hari)} hari` : '';
+        $('#xUnit').innerHTML = '';
         $('#xPerbaikan').innerHTML = ada ? (d.perbaikan_unit ? `di ${DMS.num(d.perbaikan_unit)} unit · rata-rata ${DMS.num(Math.round(a.jam.PERBAIKAN / d.perbaikan_unit))} jam/unit` : 'tidak ada unit yang diperbaiki') : '';
         $('#kpiJalan').textContent = ada ? DMS.unit(a.avg_jalan) : '–';
         renderPembanding(a, d.pembanding, { jalan: '#dJalan' });
-        $('#kpiLengkap').textContent = kp && kp.persen !== null ? DMS.pct(kp.persen) : '–';
-        $('#kpiLengkap').closest('.kpi').classList.toggle('kurang', !!(kp && kp.persen !== null && kp.persen < 100));
-        $('#xLengkap').innerHTML = !kp ? 'pilih satu bulan untuk melihat'
-          : kp.seharusnya ? `${DMS.num(kp.terisi)} dari ${DMS.num(kp.seharusnya)} unit-hari terisi` : 'belum ada hari yang perlu diisi';
 
         renderKelengkapan(d.kelengkapan);
         $('#resetNotice').innerHTML = d.reset_menunggu ? `<a class="reset-notice" href="${P.akunUrl}">
@@ -365,19 +334,14 @@
         const head = list.querySelector('.head').outerHTML;
         list.innerHTML = head + d.bidang.map((b) => {
           const ar = b.availability_rate;
-          const kl = kp?.per_bidang?.[b.kode];
-          const klTeks = !kp ? '<span class="text-secondary">–</span>' : (kl && kl.persen !== null
-            ? `<span class="v ${kl.persen < 100 ? 'kurang' : 'penuh'}">${DMS.pct(kl.persen)}</span>` : '<span class="text-secondary">–</span>');
           return `<a class="bidang-row" href="${P.summaryBase}/${b.kode}?${qs()}" aria-label="Buka dashboard ${DMS.esc(b.nama)}">
             <span class="nama">${DMS.esc(b.nama)}</span>
-            <span data-l="Unit aktif"><span class="v">${DMS.num(b.unit_aktif)}</span> <span class="kpi-sub">unit</span></span>
+            <span data-l="Jumlah unit"><span class="v">${DMS.num(b.unit)}</span> <span class="kpi-sub">unit</span></span>
             ${ar === null
               ? '<span class="nodata" data-l="Availability">Belum ada data</span><span class="nodata" data-l="Utilisasi">–</span>'
               : `<span class="meter" data-l="Availability"><span class="v">${DMS.pct(ar)}</span><span class="bar" aria-hidden="true"><span style="width:${ar}%"></span></span></span>
             <span data-l="Utilisasi"><span class="v">${DMS.pct(b.utilisasi)}</span></span>`}
             <span data-l="Jam perbaikan"><span class="v">${DMS.num(b.perbaikan)}</span> <span class="kpi-sub">jam</span></span>
-            <span data-l="Kelengkapan">${klTeks}</span>
-            <span class="upd" data-l="Update terakhir">${b.diperbarui ? DMS.tanggalPanjang(b.diperbarui) : '–'}</span>
             <span class="go" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
           </a>`;
         }).join('');
@@ -389,11 +353,10 @@
         $('#donutLegend').innerHTML = `<div class="legend-inline">${legendJam(a.jam)}</div>`;
         const has = d.tren.some((r) => r.unit_hari > 0);
         toggle($('#cTren').parentElement, $('#trenEmpty'), has);
-        if (has) DMS.charts.utilitas($('#cTren'), d.tren.map((r) => DMS.periodeLabel(r.periode)), d.tren, { type: 'line', yTitle: 'unit', kelengkapan: d.tren });
-        catatanKelengkapan($('#trenNote'), has ? d.tren : [], 'tanggal');
+        if (has) DMS.charts.utilitas($('#cTren'), d.tren.map((r) => DMS.periodeLabel(r.periode)), d.tren, { type: 'line', yTitle: 'unit' });
 
         // ---- Ringkasan dalam kalimat ----
-        $('#rkIsi').innerHTML = ringkasanBeranda(d, kp).map((t) => `<li>${t}</li>`).join('');
+        $('#rkIsi').innerHTML = ringkasanBeranda(d).map((t) => `<li>${t}</li>`).join('');
 
         // ---- Unit dengan jam perbaikan terbanyak ----
         $('#topSemua').href = `${$('#topSemua').href.split('?')[0]}?${qs()}`;
@@ -586,8 +549,7 @@
         $('#trenTitle').textContent = d.tren_mode === 'hari' ? 'Unit per hari' : 'Tren per bulan';
         const adaTren = tr.some((r) => r.unit_hari > 0);
         toggle($('#cTren').parentElement, $('#trEmpty'), adaTren);
-        if (adaTren) DMS.charts.utilitas($('#cTren'), tr.map((r) => DMS.periodeLabel(r.periode)), tr, { type: 'line', yTitle: 'unit', kelengkapan: tr });
-        catatanKelengkapan($('#trNote'), adaTren ? tr : [], d.tren_mode === 'hari' ? 'tanggal' : 'bulan');
+        if (adaTren) DMS.charts.utilitas($('#cTren'), tr.map((r) => DMS.periodeLabel(r.periode)), tr, { type: 'line', yTitle: 'unit' });
 
         DMS.charts.donut($('#cAvail'), a.jam);
         $('#arCenter').textContent = DMS.num(a.total_jam);

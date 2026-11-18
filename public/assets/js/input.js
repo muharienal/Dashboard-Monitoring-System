@@ -93,7 +93,7 @@
       kt.querySelectorAll('input[data-k]').forEach((el) => { if (el !== aktifEl) el.value = r[el.dataset.k]; });
       kt.querySelectorAll('[data-v]').forEach((el) => { el.textContent = r[el.dataset.v]; });
       kt.querySelector('.kt-standby').textContent = r.standby;
-      kt.querySelector('.kt-status').textContent = r.error ? r.error : (r.conflict ? 'Diubah orang lain' : (isDirty(r) ? 'Belum disimpan' : (r.tersimpan ? 'Tersimpan' : (r.otomatis ? 'Standby otomatis' : 'Belum diisi'))));
+      kt.querySelector('.kt-status').textContent = r.error ? r.error : (r.conflict ? 'Diubah orang lain' : (isDirty(r) ? 'Belum disimpan' : (r.tersimpan ? 'Tersimpan' : 'Belum diisi')));
     }
   }
 
@@ -115,8 +115,11 @@
       }
       return r;
     });
-    const n = data.rows.length, saved = data.jumlah_tersimpan;
-    $('#infoSaved').textContent = `${saved} dari ${n} unit tersimpan`;
+    // Tanpa hitungan unit belum: unit yang tidak diubah memang tercatat Standby 24 jam otomatis.
+    const t = data.terakhir;
+    $('#infoSaved').textContent = t
+      ? `Tanggal ini diperbarui ${t.waktu.slice(11, 16).replace(':', '.')}${t.oleh ? ' oleh ' + t.oleh : ''}`
+      : 'Tanggal ini belum ada update';
     setLast(data.terakhir_bidang);
     document.querySelectorAll('#grid th[data-k]').forEach((th) => {
       th.querySelector('.fa-lock')?.remove();
@@ -641,7 +644,7 @@
       const aoa = [[judul], ['Tanggal', 'Jenis', 'Nomor', 'Jalan', 'Standby', 'Rusak', 'Perbaikan', 'PM', 'Total', 'Availability (%)', 'Status', 'Waktu simpan']];
       // Baris: [tanggal, jenis, nomor, jalan, standby, rusak, perbaikan, pm, total, availability, waktu simpan, status].
       // status: diisi = disimpan petugas; otomatis = Standby 24 jam dari sistem; belum = tidak ada data.
-      const STATUS = { diisi: 'Sudah diisi', otomatis: 'Otomatis (Standby)', belum: 'Belum diisi' };
+      const STATUS = { diisi: 'Sudah diisi', otomatis: 'Belum diisi', belum: 'Belum diisi' };
       d.rows.forEach((r) => {
         aoa.push([r[0], r[1], r[2], ...r.slice(3, 10).map((v) => (v === null ? '' : v)), STATUS[r[11]] || '', r[10] || '']);
       });

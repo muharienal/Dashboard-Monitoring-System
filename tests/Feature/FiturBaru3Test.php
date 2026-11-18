@@ -21,7 +21,8 @@ class FiturBaru3Test extends DmsTestCase
 
     private function kl(array $d, int $hari, string $kode): array
     {
-        return collect($d['kelengkapan'][$hari]['bidang'])->firstWhere('kode', $kode);
+        // $hari: 0 = kemarin, 1 = hari ini (dihitung dari akhir; kartu juga memuat kemarin lusa)
+        return collect($d['kelengkapan'][count($d['kelengkapan']) - 2 + $hari]['bidang'])->firstWhere('kode', $kode);
     }
 
     public function test_beranda_menandai_bidang_tanpa_unit_jalan_atau_rusak(): void
@@ -54,27 +55,6 @@ class FiturBaru3Test extends DmsTestCase
         $this->simpan($this->user('bidang', $this->anglu->id), $this->anglu, now()->toDateString(), [['kendaraan_id' => $this->k2->id, 'rusak' => 3]])->assertOk();
         $b = $this->kl($this->actingAs($this->user('admin'))->getJson(route('beranda.data'))->json(), 1, 'angkutan-luar');
         $this->assertFalse($b['curiga_kosong']);
-    }
-
-    public function test_isian_kosong_bulanan_dan_catatan_laporan_pdf(): void
-    {
-        $this->baris($this->k1, $this->anglu->id, '2026-10-01');
-        $this->baris($this->k2, $this->anglu->id, '2026-10-01');
-        $this->baris($this->k1, $this->anglu->id, '2026-10-02', 8);
-        $this->baris($this->k2, $this->anglu->id, '2026-10-02');
-        $this->baris($this->k1, $this->anglu->id, '2026-10-03');
-
-        $k = app(DashboardService::class)->isianKosongBulan(2026, 10);
-        $this->assertSame(['tanggal_data' => 3, 'tanggal_kosong' => 2, 'contoh' => [1, 3]], $k['angkutan-luar']);
-        $this->assertSame(0, $k['alber-wil-2']['tanggal_data']);
-
-        $this->actingAs($this->user('manajemen'))->get(route('laporan.bulanan', ['tahun' => 2026, 'bulan' => 10]))->assertOk()
-            ->assertSee('Tidak ada satu unit pun yang tercatat Jalan atau Rusak di', false)
-            ->assertSee('Angkutan Luar (2 dari 3 tanggal, mis. tanggal 1, 3)', false)
-            ->assertSee('<sup class="tanda"', false);
-        // Bulan tanpa isian kosong: tidak ada tanda.
-        $this->actingAs($this->user('manajemen'))->get(route('laporan.bulanan', ['tahun' => 2026, 'bulan' => 9]))->assertOk()
-            ->assertDontSee('<sup class="tanda"', false);
     }
 
     public function test_dashboard_bidang_membandingkan_dengan_bulan_lalu_bidang_yang_sama(): void

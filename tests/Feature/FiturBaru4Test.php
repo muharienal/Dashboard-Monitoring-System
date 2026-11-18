@@ -57,7 +57,7 @@ class FiturBaru4Test extends DmsTestCase
     }
 
     // ---------------------------------------------------------------- Perbandingan bidang
-    public function test_perbandingan_peringkat_dan_kalender(): void
+    public function test_perbandingan_peringkat_tanpa_kelengkapan(): void
     {
         $this->baris($this->k1, $this->anglu->id, '2026-10-01', 10);
         $this->baris($this->k2, $this->anglu->id, '2026-10-01', 0, 24);
@@ -67,11 +67,8 @@ class FiturBaru4Test extends DmsTestCase
         $this->assertSame('alber-wil-2', $baris[0]['kode']);   // 100%
         $this->assertSame('angkutan-luar', $baris[1]['kode']); // 50%
         $this->assertSame(50.0, $baris[1]['availability']);
-        $kal = collect($r->viewData('kalender'))->keyBy('kode');
-        $this->assertSame('lengkap', $kal['angkutan-luar']['sel'][0]['status']);
-        $this->assertSame('kosong', $kal['angkutan-luar']['sel'][1]['status']);
-        $this->assertSame('tanpa', $kal['angkutan-dalam']['sel'][0]['status']);
-        $this->assertSame(31, count($kal['angkutan-luar']['sel']));
+        $this->assertArrayNotHasKey('kelengkapan', $baris[0]);
+        $r->assertDontSee('Kelengkapan')->assertDontSee('Kalender');
         // urut menurut utilisasi & parameter aneh aman
         $this->actingAs($this->user('manajemen'))->get(route('dashboard.perbandingan', ['tahun' => 'x', 'bulan' => [1], 'urut' => 'zzz']))->assertOk();
     }

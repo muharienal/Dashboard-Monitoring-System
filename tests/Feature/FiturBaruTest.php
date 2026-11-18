@@ -14,7 +14,8 @@ class FiturBaruTest extends DmsTestCase
 {
     private function kl(array $data, int $hari, string $kode): array
     {
-        return collect($data['kelengkapan'][$hari]['bidang'])->firstWhere('kode', $kode);
+        // $hari: 0 = kemarin, 1 = hari ini (dihitung dari akhir; kartu juga memuat kemarin lusa)
+        return collect($data['kelengkapan'][count($data['kelengkapan']) - 2 + $hari]['bidang'])->firstWhere('kode', $kode);
     }
 
     // ---------------------------------------------------------------- Pengingat input
@@ -24,7 +25,7 @@ class FiturBaruTest extends DmsTestCase
         $this->simpan($admin, $this->anglu, now()->toDateString(), [['kendaraan_id' => $this->k1->id, 'jalan' => 8]])->assertOk();
 
         $d = $this->actingAs($admin)->getJson(route('beranda.data'))->assertOk()->json();
-        $this->assertSame([now()->subDay()->toDateString(), now()->toDateString()], array_column($d['kelengkapan'], 'tanggal'));
+        $this->assertSame([now()->subDays(2)->toDateString(), now()->subDay()->toDateString(), now()->toDateString()], array_column($d['kelengkapan'], 'tanggal'));
         $this->assertSame(['unit' => 2, 'terisi' => 1, 'belum' => 1, 'bisa_input' => true],
             array_intersect_key($this->kl($d, 1, 'angkutan-luar'), array_flip(['unit', 'terisi', 'belum', 'bisa_input'])));
         $this->assertSame(2, $this->kl($d, 0, 'angkutan-luar')['belum']);
@@ -41,19 +42,6 @@ class FiturBaruTest extends DmsTestCase
         $d = $this->actingAs($this->user('admin'))->getJson(route('beranda.data'))->json();
         $this->assertSame(1, $this->kl($d, 1, 'angkutan-luar')['unit'], 'hari ini k2 sudah nonaktif');
         $this->assertSame(2, $this->kl($d, 0, 'angkutan-luar')['unit'], 'kemarin k2 masih beroperasi');
-    }
-
-    public function test_kelengkapan_bulan_menghitung_unit_hari(): void
-    {
-        $tgl = now()->subMonthNoOverflow()->startOfMonth();
-        $hari = $tgl->daysInMonth;
-        for ($i = 0; $i < $hari; $i++) {
-            DB::table('sheet_data')->insert(['tanggal' => $tgl->copy()->addDays($i)->toDateString(), 'kendaraan_id' => $this->k1->id,
-                'bidang_id' => $this->anglu->id, 'jenis_kendaraan_id' => $this->k1->jenis_kendaraan_id, 'created_at' => now(), 'updated_at' => now()]);
-        }
-        $l = app(DashboardService::class)->kelengkapanBulan($tgl->year, $tgl->month);
-        $this->assertSame(['seharusnya' => $hari * 2, 'terisi' => $hari, 'persen' => 50.0], $l['angkutan-luar']);
-        $this->assertSame(0, $l['alber-wil-2']['terisi']);
     }
 
     // --------------------------------------------------------------- Riwayat perubahan
@@ -126,7 +114,7 @@ class FiturBaruTest extends DmsTestCase
         $this->simpan($this->user('admin'), $this->anglu, now()->toDateString(), [['kendaraan_id' => $this->k1->id, 'jalan' => 8, 'perbaikan' => 3]])->assertOk();
         $this->actingAs($this->user('manajemen'))->get(route('laporan.bulanan', ['tahun' => now()->year, 'bulan' => now()->month]))->assertOk()
             ->assertSee('LAPORAN BULANAN OPERASIONAL KENDARAAN')->assertSee($this->anglu->nama_tampil)->assertSee('W 1 AA')
-            ->assertSee('Kelengkapan input')->assertDontSee('Mengetahui');
+            ->assertDontSee('Kelengkapan input')->assertDontSee('Mengetahui');
         // Parameter tidak valid -> bulan ini
         $this->actingAs($this->user('bidang'))->get(route('laporan.bulanan', ['tahun' => 'x', 'bulan' => 13]))->assertOk()
             ->assertSee(now()->translatedFormat('F Y'));

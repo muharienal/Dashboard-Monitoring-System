@@ -164,6 +164,34 @@ final class Filter
         return $q;
     }
 
+    /**
+     * Rentang tanggal periode filter [dari, sampai] (Y-m-d), atau null bila tahun tidak dipilih.
+     * Dipakai untuk menghitung jumlah unit dari data master (kendaraan yang beroperasi pada periode itu).
+     */
+    public function batas(): ?array
+    {
+        if (! $this->tahun) {
+            return $this->mulai && $this->sampai ? [$this->mulai, $this->sampai] : null;
+        }
+        if ($this->bulan && $this->hari && checkdate($this->bulan, $this->hari, $this->tahun)) {
+            $d = sprintf('%04d-%02d-%02d', $this->tahun, $this->bulan, $this->hari);
+            $r = [$d, $d];
+        } elseif ($this->bulan) {
+            $a = CarbonImmutable::create($this->tahun, $this->bulan, 1);
+            $r = [$a->toDateString(), $a->endOfMonth()->toDateString()];
+        } else {
+            $r = ["{$this->tahun}-01-01", "{$this->tahun}-12-31"];
+        }
+        if ($this->mulai && $this->mulai > $r[0]) {
+            $r[0] = $this->mulai;
+        }
+        if ($this->sampai && $this->sampai < $r[1]) {
+            $r[1] = $this->sampai;
+        }
+
+        return $r;
+    }
+
     public function label(): string
     {
         if ($this->mulai && $this->sampai && ! $this->tahun) {

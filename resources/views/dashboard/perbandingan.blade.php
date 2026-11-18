@@ -28,7 +28,7 @@
     </form>
 </div>
 
-<div class="card-dms mb-3">
+<div class="card-dms">
     <div class="card-head flex-wrap gap-2"><h2>Peringkat</h2>
         <nav class="seg" aria-label="Urutkan menurut">
             @foreach (PerbandinganController::URUT as $k => $l)<a href="{{ $urlUrut($k) }}" class="{{ $urut === $k ? 'active' : '' }}" @if ($urut === $k) aria-current="true" @endif>{{ $l }}</a>@endforeach
@@ -45,12 +45,11 @@
                 @foreach ($baris as $i => $b)
                     <tr>
                         <td class="text-center"><span class="pb-rank {{ $b[$urut] === null ? 'kosong' : '' }}">{{ $b[$urut] === null ? '–' : $i + 1 }}</span></td>
-                        <td><a class="fw-bold nomor-link" href="{{ route('dashboard.summary', $b['kode']) }}">{{ $b['nama'] }}</a>
-                            @if ($b['kosong'])<div class="small kl-curiga mt-1"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {{ $b['kosong'] }} tanggal tanpa unit Jalan/Rusak</div>@endif</td>
+                        <td><a class="fw-bold nomor-link" href="{{ route('dashboard.summary', $b['kode']) }}">{{ $b['nama'] }}</a></td>
                         <td class="text-end num">{{ number_format($b['unit'], 0, ',', '.') }}</td>
-                        @foreach (['availability', 'utilisasi', 'kelengkapan'] as $k)
+                        @foreach (array_keys(PerbandinganController::URUT) as $k)
                             <td class="{{ $urut === $k ? 'aktif' : '' }}">
-                                <div class="pb-nilai"><span class="v">{{ $p1($b[$k]) }}</span>{!! $delta($b['d_'.$k], $k === 'kelengkapan' ? \Carbon\CarbonImmutable::create($tahun, $bulan, 1)->subMonthNoOverflow()->translatedFormat('F') : ($b['label_lalu'] ?? '')) !!}</div>
+                                <div class="pb-nilai"><span class="v">{{ $p1($b[$k]) }}</span>{!! $delta($b['d_'.$k], $b['label_lalu'] ?? '') !!}</div>
                                 <span class="pb-bar m-{{ $k }}" aria-hidden="true"><span style="width:{{ min(100, max(0, $b[$k] ?? 0)) }}%"></span></span>
                             </td>
                         @endforeach
@@ -63,49 +62,6 @@
     </div>
 </div>
 
-<div class="card-dms">
-    <div class="card-head flex-wrap gap-2"><h2>Kalender kelengkapan input</h2>
-        <div class="legend-row">
-            <span><span class="legend-dot kk-lengkap"></span>Lengkap</span><span><span class="legend-dot kk-sebagian"></span>Sebagian</span>
-            <span><span class="legend-dot kk-kosong"></span>Belum diisi</span><span><span class="legend-dot kk-curiga"></span>Tanpa unit Jalan/Rusak</span>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="kalender-gulir">
-            <table class="kk-tabel" aria-label="Kelengkapan input per tanggal per bidang">
-                <thead><tr><th scope="col" class="kk-nama">Bidang</th>
-                    @foreach ($kalender[0]['sel'] ?? [] as $s)
-                        @php $hr = \Carbon\CarbonImmutable::parse($s['tanggal']); @endphp
-                        <th scope="col" class="{{ $hr->isWeekend() ? 'libur' : '' }}" title="{{ $hr->translatedFormat('l, j F') }}">{{ $s['hari'] }}</th>
-                    @endforeach
-                </tr></thead>
-                <tbody>
-                @foreach ($kalender as $row)
-                    <tr><th scope="row" class="kk-nama">{{ $row['nama'] }}</th>
-                        @foreach ($row['sel'] as $s)
-                            @php
-                                $judul = \Carbon\CarbonImmutable::parse($s['tanggal'])->translatedFormat('j F').' · '.$row['nama'].': '
-                                    .match ($s['status']) { 'nanti' => 'belum waktunya', 'tanpa' => 'tidak ada unit beroperasi',
-                                        default => $s['terisi'].' dari '.$s['unit'].' unit terisi' }
-                                    .($s['curiga'] ? ' — tidak ada unit Jalan/Rusak' : '');
-                                $kelas = 'kk-sel kk-'.$s['status'].($s['curiga'] ? ' kk-curiga' : '');
-                                $bisaKlik = $row['bisa_input'] && in_array($s['status'], ['lengkap', 'sebagian', 'kosong'], true);
-                            @endphp
-                            <td>
-                                @if ($bisaKlik)
-                                    <a class="{{ $kelas }}" href="{{ route('input.show', ['bidang' => $row['bidang'], 'tanggal' => $s['tanggal']]) }}" title="{{ $judul }}" aria-label="{{ $judul }}"></a>
-                                @else
-                                    <span class="{{ $kelas }}" title="{{ $judul }}" aria-label="{{ $judul }}"></span>
-                                @endif
-                            </td>
-                        @endforeach
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
 @endsection
 
 @push('scripts')

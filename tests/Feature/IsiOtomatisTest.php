@@ -114,10 +114,6 @@ class IsiOtomatisTest extends DmsTestCase
         $this->assertSame([2, 2, 0], [$kl['angkutan-luar']['unit'], $kl['angkutan-luar']['terisi'], $kl['angkutan-luar']['belum']]);
         $this->assertSame([1, 0, 1], [$kl['alber-wil-2']['unit'], $kl['alber-wil-2']['terisi'], $kl['alber-wil-2']['belum']]);
 
-        // Kelengkapan bulan: hanya tanggal yang sudah disimpan petugas yang dihitung terisi.
-        $b = $svc->kelengkapanBulan(2026, 10)['angkutan-luar'];
-        $this->assertSame([10, 2], [$b['seharusnya'], $b['terisi']]);
-
         // Angka dashboard memakai data otomatis (data sudah ada di database).
         $this->assertSame(15, DB::table('sheet_data')->count());
     }
@@ -176,5 +172,25 @@ class IsiOtomatisTest extends DmsTestCase
         $this->assertSame(0, IsiOtomatis::pastikan(true));
         config(['dms.isi_otomatis_sejak' => '2026-10-05']);
         $this->assertSame(3, IsiOtomatis::pastikan(true));
+    }
+
+    public function test_beranda_menampilkan_update_terakhir_per_bidang_bukan_jumlah_unit_belum(): void
+    {
+        IsiOtomatis::pastikan(true);
+        $svc = app(DashboardService::class);
+        $kl = collect($svc->kelengkapan(['2026-10-05'])[0]['bidang'])->keyBy('kode');
+        $this->assertNull($kl['angkutan-luar']['terakhir']);
+
+        Carbon::setTestNow('2026-10-05 08:15:00');
+        $u = $this->user('bidang');
+        $this->simpan($u, $this->anglu, '2026-10-05', [['kendaraan_id' => $this->k1->id, 'jalan' => 12, 'rusak' => 0]])->assertOk();
+        $kl = collect($svc->kelengkapan(['2026-10-05'])[0]['bidang'])->keyBy('kode');
+        $this->assertSame(['2026-10-05 08:15:00', $u->name], [$kl['angkutan-luar']['terakhir'], $kl['angkutan-luar']['oleh']]);
+        $this->assertNull($kl['alber-wil-2']['terakhir']);
+
+        // Data dari DMS lama (tanpa pengguna) ditandai "DMS lama".
+        DB::table('sheet_data')->where('kendaraan_id', $this->k3->id)->whereDate('tanggal', '2026-10-05')->update(['otomatis' => false, 'updated_by' => null]);
+        $kl = collect($svc->kelengkapan(['2026-10-05'])[0]['bidang'])->keyBy('kode');
+        $this->assertSame('DMS lama', $kl['alber-wil-2']['oleh']);
     }
 }

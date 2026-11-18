@@ -24,7 +24,7 @@
     </div></div>
     <div class="col-xl-6"><div class="card-dms h-100">
         <div class="card-head"><h2 id="trenTitle">Unit per hari</h2></div>
-        <div class="card-body"><div id="trEmpty"></div><div class="chart-box"><canvas id="cTren" role="img" aria-label="Tren unit"></canvas></div><div class="tren-catatan" id="trNote"></div></div>
+        <div class="card-body"><div id="trEmpty"></div><div class="chart-box"><canvas id="cTren" role="img" aria-label="Tren unit"></canvas></div></div>
     </div></div>
 </div>
 

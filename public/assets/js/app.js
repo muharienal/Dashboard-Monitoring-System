@@ -135,27 +135,6 @@
     Chart.defaults.animation.duration = 300;
     Chart.defaults.maintainAspectRatio = false;
 
-    // Arsir latar periode yang inputnya belum lengkap: options.plugins.dmsBelumLengkap.tandai = [bool per titik].
-    Chart.register({
-      id: 'dmsBelumLengkap',
-      beforeDatasetsDraw(chart, _args, opts) {
-        const tandai = opts && opts.tandai;
-        const x = chart.scales.x, area = chart.chartArea;
-        if (!tandai || !tandai.some(Boolean) || !x || !area) return;
-        const n = chart.data.labels.length;
-        const step = n > 1 ? Math.abs(x.getPixelForValue(1) - x.getPixelForValue(0)) : area.right - area.left;
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.fillStyle = 'rgba(201,150,46,.16)';
-        tandai.forEach((t, i) => {
-          if (!t || i >= n) return;
-          const c = x.getPixelForValue(i);
-          const kiri = Math.max(area.left, c - step / 2), kanan = Math.min(area.right, c + step / 2);
-          ctx.fillRect(kiri, area.top, kanan - kiri, area.bottom - area.top);
-        });
-        ctx.restore();
-      },
-    });
   }
 
   DMS.charts = {
@@ -207,8 +186,6 @@
 
     /** Bar rata-rata unit utilitas (JALAN / STANDBY / RUSAK). */
     utilitas(canvas, labels, rows, opts = {}) {
-      const kl = opts.kelengkapan || null;
-      const tandai = kl ? kl.map((r) => r.lengkap === false) : null;
       const ds = [['jalan', 'Jalan', 'util_jalan'], ['standby', 'Standby', 'util_standby'], ['rusak', 'Rusak', 'util_rusak']].map(([k, label, w]) => ({
         // Unit ditampilkan utuh: nilai rata-rata dibulatkan ke unit terdekat.
         label, data: rows.map((r) => (r[k] === null || r[k] === undefined) ? null : Math.round(r[k])), backgroundColor: DMS.warna[w], borderColor: DMS.warna[w],
@@ -224,7 +201,7 @@
           interaction: { mode: 'index', intersect: false, axis: opts.horizontal ? 'y' : 'x' },
           scales: {
             x: { stacked: false, grid: { display: !!opts.horizontal }, beginAtZero: true, title: { display: !!opts.xTitle, text: opts.xTitle },
-              ticks: { ...(tandai ? { color: (c) => tandai[c.index] ? '#a97a1f' : '#4f5551' } : {}), ...(opts.horizontal ? { precision: 0 } : {}) } },
+              ticks: opts.horizontal ? { precision: 0 } : {} },
             y: { beginAtZero: true, grid: { display: !opts.horizontal }, title: { display: !!opts.yTitle, text: opts.yTitle },
               ticks: opts.horizontal ? {} : { precision: 0 } },
           },
@@ -232,12 +209,7 @@
             legend: { position: 'top', align: 'end' },
             tooltip: { position: 'nearest', callbacks: {
               label: (c) => ` ${c.dataset.label}: ${DMS.unit(c.raw)} unit`,
-              afterBody: (items) => {
-                const r = kl && items.length ? kl[items[0].dataIndex] : null;
-                return r && r.lengkap === false ? [``, `Input belum lengkap: ${DMS.num(r.terisi)} dari ${DMS.num(r.unit)} unit-hari terisi`] : [];
-              },
             } },
-            dmsBelumLengkap: { tandai },
           },
         },
       });

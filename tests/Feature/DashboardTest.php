@@ -39,13 +39,11 @@ class DashboardTest extends DmsTestCase
         // 2 hari: jalan 1 unit-hari, standby 2, rusak 1 -> rata2 0.5 / 1 / 0.5
         $r->assertJsonPath('utilitas_bulanan.0.periode', '2026-10');
         $this->assertEquals([0.5, 1, 0.5], [$r->json('utilitas_bulanan.0.jalan'), $r->json('utilitas_bulanan.0.standby'), $r->json('utilitas_bulanan.0.rusak')]);
-        // Tren per hari kini memuat semua tanggal di bulan itu (31), termasuk yang belum ada datanya,
-        // dengan tanda kelengkapan: 2 tanggal berisi data lengkap (2 dari 2 unit), sisanya belum diisi.
+        // Tren per hari memuat semua tanggal di bulan itu (31), termasuk yang belum ada datanya (tanpa tanda kelengkapan).
         $r->assertJsonPath('tren_mode', 'hari')->assertJsonCount(31, 'tren');
         $tren = collect($r->json('tren'));
         $this->assertSame(2, $tren->where('unit_hari', '>', 0)->count());
-        $this->assertTrue($tren->where('unit_hari', '>', 0)->every(fn ($t) => $t['lengkap'] && $t['unit'] === 2 && $t['terisi'] === 2));
-        $this->assertSame(29, $tren->where('lengkap', false)->count());
+        $this->assertTrue($tren->every(fn ($t) => ! array_key_exists('lengkap', $t)));
         $this->assertNull($tren->firstWhere('unit_hari', 0)['jalan']);
         $r->assertJsonPath('maintenance.0.nomor', 'W 2 AA')->assertJsonPath('maintenance.0.perbaikan', 16);
         $this->assertEquals(8, $r->json('maintenance.0.rata_rata'));

@@ -11,10 +11,12 @@ class BerandaLengkapTest extends DmsTestCase
     {
         $html = $this->actingAs($this->user('manajemen'))->get(route('beranda'))->assertOk()->getContent();
         // Tombol "?" hanya untuk angka yang perlu penjelasan, bukan di setiap judul.
-        foreach (['Availability', 'Utilisasi', 'Jumlah unit', 'Kelengkapan input', 'Jumlah unit per hari'] as $judul) {
+        foreach (['Availability', 'Utilisasi', 'Jumlah unit', 'Jumlah unit per hari'] as $judul) {
             $this->assertStringContainsString('aria-label="Penjelasan: '.$judul.'"', $html, $judul);
         }
-        $this->assertSame(5, substr_count($html, 'class="info-q'));
+        $this->assertSame(4, substr_count($html, 'class="info-q'));
+        // Kelengkapan input dihapus: unit yang memang Standby tidak boleh dianggap belum diisi.
+        $this->assertStringNotContainsString('Kelengkapan', $html);
         $this->assertStringNotContainsString('Arti istilah', $html);
         $this->assertStringNotContainsString('Penjelasan: Pengingat input', $html);
         $this->assertStringContainsString('id="rkIsi"', $html); // kartu Ringkasan kembali
@@ -35,10 +37,6 @@ class BerandaLengkapTest extends DmsTestCase
         $this->assertSame(2, $d['perbaikan_unit']);
         $this->assertSame('DUMP TRUK B3', $d['jenis_terendah'][0]['jenis']);
         $this->assertSame(2, $d['jenis_jumlah']);
-        $this->assertNotNull($d['kelengkapan_periode']);
-        $this->assertSame(3, $d['kelengkapan_periode']['terisi']);
-        $this->assertArrayHasKey('angkutan-luar', $d['kelengkapan_periode']['per_bidang']);
-        // Satu tahun saja: kelengkapan periode tidak dihitung
-        $this->assertNull($this->actingAs($this->user('manajemen'))->getJson(route('beranda.data', ['tahun' => now()->year, 'bulan' => '']))->json('kelengkapan_periode'));
+        $this->assertArrayNotHasKey('kelengkapan_periode', $d);
     }
 }

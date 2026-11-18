@@ -8,7 +8,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
-/** Perbandingan KPI, tanda kelengkapan di tren, dan riwayat data master. */
+/** Perbandingan KPI, sumbu tanggal grafik tren, dan riwayat data master. */
 class FiturBaru2Test extends DmsTestCase
 {
     private function baris(Kendaraan $k, string $tgl, int $jalan = 8, int $perbaikan = 0): void
@@ -50,31 +50,22 @@ class FiturBaru2Test extends DmsTestCase
         $this->assertNull($this->actingAs($this->user('manajemen'))->getJson(route('beranda.data', ['tahun' => '', 'bulan' => 3]))->json('pembanding'));
     }
 
-    // -------------------------------------------------- Tanda kelengkapan di grafik tren
-    public function test_tren_beranda_menandai_tanggal_belum_lengkap(): void
+    // -------------------------------------------------- Grafik tren memuat semua tanggal
+    public function test_tren_beranda_memuat_semua_tanggal_tanpa_tanda_kelengkapan(): void
     {
         $tgl = CarbonImmutable::create(2026, 10, 5);
         $this->baris($this->k1, $tgl->toDateString());
         $this->baris($this->k2, $tgl->toDateString());
-        $this->baris($this->k1, $tgl->addDay()->toDateString());   // k2 belum diisi tanggal 6
+        $this->baris($this->k1, $tgl->addDay()->toDateString());
 
         $tren = collect($this->actingAs($this->user('manajemen'))->getJson(route('beranda.data', ['tahun' => 2026, 'bulan' => 10]))->json('tren'))->keyBy('periode');
         $this->assertCount(31, $tren);
-        // Semua bidang: 3 kendaraan uji aktif tiap hari (k1, k2 di Angkutan Luar, k3 di Alber Wil 2).
-        $this->assertSame(['unit' => 3, 'terisi' => 2, 'lengkap' => false], array_intersect_key($tren['2026-10-05'], array_flip(['unit', 'terisi', 'lengkap'])));
-        $this->assertSame(1, $tren['2026-10-06']['terisi']);
         $this->assertSame(0, $tren['2026-10-07']['unit_hari']);
+        $this->assertArrayNotHasKey('lengkap', $tren['2026-10-05']);
 
-        // Dashboard Bidang Angkutan Luar: tanggal 5 lengkap (2/2), tanggal 6 belum (1/2).
         $b = collect($this->actingAs($this->user('manajemen'))->getJson(route('api.dashboard.summary', $this->anglu).'?tahun=2026&bulan=10')->json('tren'))->keyBy('periode');
-        $this->assertTrue($b['2026-10-05']['lengkap']);
-        $this->assertFalse($b['2026-10-06']['lengkap']);
-
-        // Kendaraan yang mulai beroperasi 20 Oktober tidak dihitung sebelum tanggal itu.
-        $this->k2->update(['aktif_sejak' => '2026-10-20']);
-        $b = collect($this->actingAs($this->user('manajemen'))->getJson(route('api.dashboard.summary', $this->anglu).'?tahun=2026&bulan=10')->json('tren'))->keyBy('periode');
-        $this->assertSame(1, $b['2026-10-10']['unit']);
-        $this->assertSame(2, $b['2026-10-20']['unit']);
+        $this->assertCount(31, $b);
+        $this->assertArrayNotHasKey('lengkap', $b['2026-10-06']);
     }
 
     public function test_tren_per_tahun_per_bulan_dan_tidak_melewati_hari_ini(): void

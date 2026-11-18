@@ -10,7 +10,6 @@
     $tgl = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->translatedFormat('j M Y') : '–';
     $sebelum = $awal->subDay()->toDateString();
     $sesudah = $akhir->addDays(\App\Http\Controllers\ProfilKendaraanController::HARI);
-    $kelengkapan = $seharusnya > 0 ? round(min($hariData, $seharusnya) / $seharusnya * 100, 1) : null;
 @endphp
 @section('content')
 <div class="page-head">
@@ -48,7 +47,7 @@
 <div class="kpi-strip">
     <div class="kpi"><div class="kpi-label">Availability</div><div class="kpi-value">{{ $p1($ar) }}</div><div class="kpi-sub">(jalan + standby) ÷ total jam</div></div>
     <div class="kpi"><div class="kpi-label">Utilisasi</div><div class="kpi-value">{{ $p1($utilisasi) }}</div><div class="kpi-sub">hari berstatus Jalan</div></div>
-    <div class="kpi"><div class="kpi-label">Hari berisi data</div><div class="kpi-value">{{ $n0($hariData) }}<span class="kpi-dari"> / {{ $n0($seharusnya) }}</span></div><div class="kpi-sub">kelengkapan {{ $p1($kelengkapan) }}</div></div>
+    <div class="kpi"><div class="kpi-label">Hari berisi data</div><div class="kpi-value">{{ $n0($hariData) }}<span class="kpi-dari"> / {{ $n0($seharusnya) }}</span></div></div>
     <div class="kpi"><div class="kpi-label">Jam perbaikan</div><div class="kpi-value">{{ $n0($jam['perbaikan']) }}</div><div class="kpi-sub">di {{ $n0($gangguan->where('perbaikan', '>', 0)->count()) }} hari</div></div>
 </div>
 

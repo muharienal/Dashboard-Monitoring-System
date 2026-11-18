@@ -7,8 +7,6 @@
     $u = auth()->user();
     $sampai = $berjalan ? now()->translatedFormat('j F Y') : $akhir->endOfMonth()->translatedFormat('j F Y');
     $namaBulan = fn ($m) => \Carbon\CarbonImmutable::create(2000, $m, 1)->translatedFormat('F');
-    $kurang = collect($lengkap)->filter(fn ($l) => $l['persen'] !== null && $l['persen'] < 100);
-    $namaBidang = collect($bidang)->pluck('nama', 'kode');
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -76,14 +74,12 @@
         tr { break-inside: avoid; }
         .bar { display: inline-block; width: 52px; height: 6px; border-radius: 3px; background: var(--line2); vertical-align: middle; margin-left: 6px; overflow: hidden; }
         .bar span { display: block; height: 100%; background: var(--green); }
-        .bar.kuning span { background: var(--gold); }
         .kosong { color: var(--muted); text-align: center; padding: 14px; }
 
         .catatan { margin-top: 12px; padding: 8px 10px; border-left: 3px solid var(--gold); background: #fbf6ea; font-size: 9pt; break-inside: avoid; }
         .catatan > b { display: block; margin-bottom: 2px; }
         .catatan ul { margin: 2px 0 0; padding-left: 16px; }
         .catatan li + li { margin-top: 2px; }
-        sup.tanda { color: #a97a1f; font-weight: 700; margin-left: 2px; }
 
         .kaki { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--line2); color: var(--muted); font-size: 8pt; display: flex; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; }
         .kaki .hakcipta { margin-left: auto; }
@@ -144,8 +140,8 @@
     <div class="kpi">
         <div><small>Availability</small><b>{{ $p1($total['availability_rate']) }}</b><em>(jalan + standby) ÷ total jam</em></div>
         <div><small>Utilisasi</small><b>{{ $p1($total['utilisasi']) }}</b><em>porsi unit-hari berstatus jalan</em></div>
-        <div><small>Jumlah unit</small><b>{{ $n0($total['unit']) }}</b><em>{{ $n0($total['hari']) }} hari berisi data</em></div>
-        <div><small>Kelengkapan input</small><b>{{ $p1($lengkapTotal) }}</b><em>unit-hari terisi s.d. {{ $sampai }}</em></div>
+        <div><small>Jumlah unit</small><b>{{ $n0($total['unit']) }}</b><em>seluruh unit beroperasi</em></div>
+        <div><small>Jam perbaikan</small><b>{{ $n0($total['jam']['PERBAIKAN']) }}</b><em>total jam perbaikan</em></div>
     </div>
     @if ($total['total_jam'] > 0)
         <div class="komposisi" role="img" aria-label="Komposisi jam per status">
@@ -167,23 +163,20 @@
     <h2><span class="nomor">{{ ++$no }}.</span>Per bidang</h2>
     <div class="tabel-gulir"><table>
         <thead><tr><th>Bidang</th><th class="r">Unit</th><th class="r">Availability</th><th class="r">Utilisasi</th>
-            <th class="r">Jalan</th><th class="r">Standby</th><th class="r">Rusak</th><th class="r">Perbaikan</th><th class="r">PM</th><th class="r">Kelengkapan input</th></tr></thead>
+            <th class="r">Jalan</th><th class="r">Standby</th><th class="r">Rusak</th><th class="r">Perbaikan</th><th class="r">PM</th></tr></thead>
         <tbody>
         @foreach ($bidang as $b)
-            @php($l = $lengkap[$b['kode']] ?? null)
             <tr>
-                <td><b>{{ $b['nama'] }}</b>@isset($kosong[$b['kode']])<sup class="tanda" title="Lihat Catatan">*</sup>@endisset</td>
+                <td><b>{{ $b['nama'] }}</b></td>
                 <td class="r">{{ $n0($b['unit']) }}</td>
                 <td class="r">{{ $p1($b['availability_rate']) }}@if ($b['availability_rate'] !== null)<span class="bar" aria-hidden="true"><span style="width:{{ $b['availability_rate'] }}%"></span></span>@endif</td>
                 <td class="r">{{ $p1($b['utilisasi']) }}</td>
                 @foreach (['JALAN', 'STANDBY', 'RUSAK', 'PERBAIKAN', 'PM'] as $k)<td class="r">{{ $n0($b['jam'][$k]) }}</td>@endforeach
-                <td class="r">{{ $p1($l['persen'] ?? null) }}@if (($l['persen'] ?? null) !== null)<span class="bar {{ $l['persen'] < 100 ? 'kuning' : '' }}" aria-hidden="true"><span style="width:{{ $l['persen'] }}%"></span></span>@endif</td>
             </tr>
         @endforeach
         </tbody>
         <tfoot><tr><td>Total</td><td class="r">{{ $n0($total['unit']) }}</td><td class="r">{{ $p1($total['availability_rate']) }}</td><td class="r">{{ $p1($total['utilisasi']) }}</td>
-            @foreach (['JALAN', 'STANDBY', 'RUSAK', 'PERBAIKAN', 'PM'] as $k)<td class="r">{{ $n0($total['jam'][$k]) }}</td>@endforeach
-            <td class="r">{{ $p1($lengkapTotal) }}</td></tr></tfoot>
+            @foreach (['JALAN', 'STANDBY', 'RUSAK', 'PERBAIKAN', 'PM'] as $k)<td class="r">{{ $n0($total['jam'][$k]) }}</td>@endforeach</tr></tfoot>
     </table></div>
     <div style="font-size:8pt;color:var(--muted);margin-top:4px">Kolom Jalan s.d. PM dalam jam.</div>
     @endif
@@ -191,13 +184,12 @@
     @if (! $satuBulan)
     <h2><span class="nomor">{{ ++$no }}.</span>Per bulan</h2>
     <div class="tabel-gulir"><table>
-        <thead><tr><th>Bulan</th><th class="r">Unit</th><th class="r">Availability</th><th class="r">Utilisasi</th><th class="r">Rusak (jam)</th><th class="r">Perbaikan (jam)</th><th class="r">PM (jam)</th><th class="r">Kelengkapan input</th></tr></thead>
+        <thead><tr><th>Bulan</th><th class="r">Unit</th><th class="r">Availability</th><th class="r">Utilisasi</th><th class="r">Rusak (jam)</th><th class="r">Perbaikan (jam)</th><th class="r">PM (jam)</th></tr></thead>
         <tbody>
         @foreach ($perBulan as $pb)
             <tr><td><b>{{ $pb['label'] }}</b></td><td class="r">{{ $n0($pb['unit']) }}</td>
                 <td class="r">{{ $p1($pb['availability_rate']) }}@if ($pb['availability_rate'] !== null)<span class="bar" aria-hidden="true"><span style="width:{{ $pb['availability_rate'] }}%"></span></span>@endif</td>
-                <td class="r">{{ $p1($pb['utilisasi']) }}</td><td class="r">{{ $n0($pb['jam']['RUSAK']) }}</td><td class="r">{{ $n0($pb['jam']['PERBAIKAN']) }}</td><td class="r">{{ $n0($pb['jam']['PM']) }}</td>
-                <td class="r">{{ $p1($pb['lengkap']) }}@if ($pb['lengkap'] !== null)<span class="bar {{ $pb['lengkap'] < 100 ? 'kuning' : '' }}" aria-hidden="true"><span style="width:{{ $pb['lengkap'] }}%"></span></span>@endif</td></tr>
+                <td class="r">{{ $p1($pb['utilisasi']) }}</td><td class="r">{{ $n0($pb['jam']['RUSAK']) }}</td><td class="r">{{ $n0($pb['jam']['PERBAIKAN']) }}</td><td class="r">{{ $n0($pb['jam']['PM']) }}</td></tr>
         @endforeach
         </tbody>
     </table></div>
@@ -229,22 +221,10 @@
         </tbody>
     </table></div>
 
-    @if ($kurang->isNotEmpty() || $berjalan || $kosong)
+    @if ($berjalan)
         <div class="catatan">
             <b>Catatan</b>
-            <ul>
-                @if ($berjalan)<li>{{ $satuBulan ? 'Bulan' : 'Periode' }} masih berjalan; angka dapat berubah sampai akhir bulan.</li>@endif
-                @if ($kosong)
-                    {{-- Satu poin untuk semua bidang tanpa Jalan & Rusak (bukan satu paragraf per bidang) --}}
-                    <li><b>*</b> Tidak ada satu unit pun yang tercatat Jalan atau Rusak di
-                        @foreach ($kosong as $kode => $k){{ $namaBidang[$kode] ?? $kode }} ({{ $k['tanggal_kosong'] === $k['tanggal_data'] ? 'semua '.$n0($k['tanggal_data']).' tanggal' : $n0($k['tanggal_kosong']).' dari '.$n0($k['tanggal_data']).' tanggal, mis. '.($satuBulan ? 'tanggal ' : '').implode(', ', $k['contoh']).($k['tanggal_kosong'] > count($k['contoh']) ? ', …' : '') }}){{ $loop->last ? '' : ($loop->remaining === 1 ? ' dan ' : ', ') }}@endforeach.
-                        Kemungkinan kolom Jalan & Rusak belum diisi, sehingga Availability tampak lebih tinggi dan Utilisasi 0%.</li>
-                @endif
-                @if ($kurang->isNotEmpty())
-                    <li>Input belum lengkap, angkanya belum final:
-                        @foreach ($kurang as $kode => $l){{ $namaBidang[$kode] ?? $kode }} {{ $p1($l['persen']) }}{{ $loop->last ? '' : ', ' }}@endforeach.</li>
-                @endif
-            </ul>
+            <ul><li>{{ $satuBulan ? 'Bulan' : 'Periode' }} masih berjalan; angka dapat berubah sampai akhir bulan.</li></ul>
         </div>
     @endif
 

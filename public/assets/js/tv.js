@@ -48,13 +48,11 @@
     const ada = rows.some((r) => r.unit_hari > 0);
     $('#tvTren').parentElement.style.visibility = ada ? 'visible' : 'hidden';
     if (!ada) { $('#tvTrenCat').textContent = 'Belum ada data bulan ini.'; return; }
-    const c = DMS.charts.utilitas($('#tvTren'), rows.map((r) => DMS.periodeLabel(r.periode)), rows, { type: 'line', yTitle: 'unit', kelengkapan: rows });
-    const tandai = rows.map((r) => r.lengkap === false);
-    c.options.scales.x.ticks.color = (t) => tandai[t.index] ? '#e2b456' : '#c9cec8';
+    const c = DMS.charts.utilitas($('#tvTren'), rows.map((r) => DMS.periodeLabel(r.periode)), rows, { type: 'line', yTitle: 'unit' });
+    c.options.scales.x.ticks.color = '#c9cec8';
     c.options.plugins.legend.labels.font = { size: 15 };
     c.update('none');
-    const kurang = rows.filter((r) => r.lengkap === false).length;
-    $('#tvTrenCat').textContent = kurang ? `Area kuning: ${kurang} tanggal inputnya belum lengkap, angkanya belum final.` : '';
+    $('#tvTrenCat').textContent = '';
   }
 
   // ---------- Halaman ----------
@@ -79,8 +77,10 @@
         <span class="bar"><span style="width:${b.availability_rate ?? 0}%"></span></span>
         <span class="u">Util ${DMS.pct(b.utilisasi)}</span></div>`).join('');
     const h = d.kelengkapan[d.kelengkapan.length - 1];
-    const belum = h.bidang.reduce((s, b) => s + b.belum, 0);
-    $('#tvKelengkapan').innerHTML = belum ? `<i class="fas fa-clipboard-list"></i> Input hari ini: <b>${DMS.num(belum)} unit belum diisi</b>` : '<i class="fas fa-circle-check"></i> Input hari ini lengkap';
+    const terbaru = h.bidang.filter((b) => b.terakhir).sort((x, y) => (x.terakhir < y.terakhir ? 1 : -1))[0];
+    $('#tvKelengkapan').innerHTML = terbaru
+      ? `<i class="fas fa-clock-rotate-left"></i> Update terakhir hari ini: <b>${terbaru.terakhir.slice(11, 16).replace(':', '.')}</b> · ${DMS.esc(terbaru.nama)}`
+      : '<i class="fas fa-clipboard-list"></i> Hari ini belum ada update input';
   }
 
   async function renderBidang(b) {

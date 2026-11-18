@@ -7,9 +7,8 @@
     $info = [
         'availability' => 'Porsi waktu kendaraan <b>siap dipakai</b> (Jalan + Standby) dari seluruh jam tercatat. Makin tinggi makin baik.'.$rumus('(Jam Jalan + Jam Standby) ÷ Total jam × 100%').$pembanding,
         'utilisasi' => 'Seberapa sering kendaraan <b>benar-benar bekerja</b>. Satu unit dihitung Jalan pada suatu hari bila Jalan lebih dari 4 jam tanpa rusak/perbaikan/PM, atau Jalan adalah jam terbesar hari itu.'.$rumus('Unit-hari berstatus Jalan ÷ Seluruh unit-hari × 100%').$pembanding,
-        'kelengkapan' => 'Seberapa lengkap data harian sudah diisi petugas bulan ini.'.$rumus('Unit-hari terisi ÷ Unit-hari yang seharusnya diisi × 100%').'Di bawah 100% berarti angka di halaman ini <b>belum final</b>. Hanya tampil bila satu bulan dipilih.',
-        'unit' => 'Banyaknya kendaraan <b>berbeda</b> yang datanya tercatat pada periode ini. Bukan jumlah unit di data master: unit yang belum pernah diinput belum terhitung (lihat kolom <b>Unit aktif</b> di tabel per bidang).'.$pembanding,
-        'tren' => 'Jumlah unit berstatus Jalan, Standby, dan Rusak (termasuk Perbaikan & PM) setiap tanggal. <b>Area kuning</b> = input tanggal itu belum lengkap, angkanya masih bisa berubah.',
+        'unit' => 'Seluruh kendaraan yang beroperasi pada periode ini menurut data master, <b>termasuk unit yang Standby</b>.'.$pembanding,
+        'tren' => 'Jumlah unit berstatus Jalan, Standby, dan Rusak (termasuk Perbaikan & PM) setiap tanggal.',
     ];
     $q = fn ($k, $judul, $posisi = 'top') => view('partials.info', ['judul' => $judul, 'isi' => $info[$k], 'posisi' => $posisi])->render();
 @endphp
@@ -30,13 +29,12 @@
 </section>
 
 {{-- Angka utama (Jam rusak & PM ada di legenda Komposisi jam) --}}
-<div class="kpi-strip kpi-6">
+<div class="kpi-strip kpi-5">
     <div class="kpi"><div class="kpi-label">Availability{!! $q('availability', 'Availability') !!}</div><div class="kpi-value" id="kpiAr">–</div><div class="kpi-detail" id="xAr"></div><div class="kpi-delta" id="dAr"></div></div>
     <div class="kpi"><div class="kpi-label">Utilisasi{!! $q('utilisasi', 'Utilisasi') !!}</div><div class="kpi-value" id="kpiUtil">–</div><div class="kpi-detail" id="xUtil"></div><div class="kpi-delta" id="dUtil"></div></div>
     <div class="kpi"><div class="kpi-label">Jumlah unit{!! $q('unit', 'Jumlah unit') !!}</div><div class="kpi-value" id="kpiUnit">–</div><div class="kpi-detail" id="xUnit"></div><div class="kpi-delta" id="dUnit"></div></div>
     <div class="kpi"><div class="kpi-label">Unit Jalan per hari</div><div class="kpi-value" id="kpiJalan">–</div><div class="kpi-detail">rata-rata</div><div class="kpi-delta" id="dJalan"></div></div>
     <div class="kpi"><div class="kpi-label">Jam perbaikan</div><div class="kpi-value" id="kpiPerbaikan">–</div><div class="kpi-detail" id="xPerbaikan"></div><div class="kpi-delta" id="dPerbaikan"></div></div>
-    <div class="kpi"><div class="kpi-label">Kelengkapan input{!! $q('kelengkapan', 'Kelengkapan input', 'left') !!}</div><div class="kpi-value" id="kpiLengkap">–</div><div class="kpi-detail" id="xLengkap"></div></div>
 </div>
 
 {{-- Per bidang --}}
@@ -46,7 +44,7 @@
 </div>
 <div class="bidang-list" id="bidangList">
     <div class="bidang-row head" aria-hidden="true">
-        <span>Bidang</span><span>Unit aktif</span><span>Availability</span><span>Utilisasi</span><span>Jam perbaikan</span><span>Kelengkapan</span><span class="upd">Update terakhir</span><span></span>
+        <span>Bidang</span><span>Jumlah unit</span><span>Availability</span><span>Utilisasi</span><span>Jam perbaikan</span><span></span>
     </div>
     <div class="empty-state">Memuat…</div>
 </div>
@@ -64,7 +62,7 @@
     <div class="col-lg-8">
         <div class="card-dms h-100">
             <div class="card-head"><h2>Jumlah unit per hari{!! $q('tren', 'Jumlah unit per hari', 'left') !!}</h2></div>
-            <div class="card-body"><div id="trenEmpty"></div><div class="chart-box"><canvas id="cTren" role="img" aria-label="Jumlah unit per status per hari"></canvas></div><div class="tren-catatan" id="trenNote"></div></div>
+            <div class="card-body"><div id="trenEmpty"></div><div class="chart-box"><canvas id="cTren" role="img" aria-label="Jumlah unit per status per hari"></canvas></div></div>
         </div>
     </div>
 </div>

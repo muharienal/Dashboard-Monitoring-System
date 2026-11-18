@@ -6,7 +6,7 @@
     <li>Standby terisi otomatis: 24 − (Jalan + Rusak + Perbaikan + PM).</li>
     <li>Klik <b>Simpan</b> atau <kbd>Ctrl</kbd>+<kbd>S</kbd>. Baris kuning = belum disimpan.</li>
 </ol>
-<p>Setiap hari semua kendaraan aktif otomatis tercatat <b>Standby 24 jam</b>, jadi data harian selalu ada walau belum disimpan. Cukup ubah unit yang Jalan, Rusak, Perbaikan, atau PM, lalu Simpan supaya tanggal itu tercatat sudah diisi petugas.</p>
+<p>Unit yang tidak diubah tercatat Standby 24 jam.</p>
 <h3>Biar cepat</h3>
 <ul>
     <li>Klik kotak lalu langsung ketik; isi lama otomatis terganti.</li>

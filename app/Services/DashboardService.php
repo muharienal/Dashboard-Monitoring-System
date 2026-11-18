@@ -69,7 +69,46 @@ class DashboardService
                 COALESCE(SUM(s.perbaikan),0) perbaikan, COALESCE(SUM(s.pm),0) pm, COUNT(*) unit_hari,
                 COUNT(DISTINCT s.kendaraan_id) unit, COUNT(DISTINCT s.tanggal) hari, COALESCE(SUM(s.utilitas_jalan),0) uj')->first();
 
-        return $this->formatAvailability((array) $r);
+        // Jumlah unit = seluruh kendaraan yang beroperasi pada periode itu (data master), termasuk yang Standby.
+        return ['unit' => $this->jumlahUnit($f)] + $this->formatAvailability((array) $r);
+    }
+
+    /**
+     * Jumlah seluruh unit yang beroperasi pada periode filter, dari data master kendaraan
+     * (periode aktif: aktif_sejak s.d. sebelum nonaktif_sejak), mengikuti filter bidang & jenis.
+     * Periode yang belum lewat dihitung sampai hari ini.
+     */
+    public function jumlahUnit(Filter $f, ?int $bidangId = null): int
+    {
+        return $this->unitQuery($f, $bidangId)->count();
+    }
+
+    /** Jumlah unit (definisi sama dengan jumlahUnit) per jenis kendaraan: [nama jenis => jumlah]. */
+    private function jumlahUnitPerJenis(Filter $f): array
+    {
+        return $this->unitQuery($f)->selectRaw('j.nama n, COUNT(*) c')->groupBy('j.nama')->pluck('c', 'n')->map(fn ($c) => (int) $c)->all();
+    }
+
+    /** Kendaraan (alias k, jenis j) yang beroperasi pada periode filter. */
+    private function unitQuery(Filter $f, ?int $bidangId = null): Builder
+    {
+        $q = DB::table('kendaraan as k')->join('jenis_kendaraan as j', 'j.id', '=', 'k.jenis_kendaraan_id');
+        if ($bidangId ?? $f->bidang?->id) {
+            $q->where('j.bidang_id', $bidangId ?? $f->bidang->id);
+        }
+        if ($f->jenis) {
+            $q->where('j.nama', $f->jenis);
+        }
+        $batas = $f->batas();
+        if (! $batas) {
+            return $q->where('k.is_active', true);
+        }
+        [$dari, $sampai] = $batas;
+        $sampai = max($dari, min($sampai, now()->toDateString()));
+
+        return $q->where(fn ($w) => $w->where('k.is_active', true)->orWhereNotNull('k.nonaktif_sejak'))
+            ->where(fn ($w) => $w->whereNull('k.aktif_sejak')->orWhereDate('k.aktif_sejak', '<=', $sampai))
+            ->where(fn ($w) => $w->whereNull('k.nonaktif_sejak')->orWhereDate('k.nonaktif_sejak', '>', $dari));
     }
 
     private function formatAvailability(array $r): array
@@ -101,7 +140,9 @@ class DashboardService
                 SUM(s.pm) pm, COUNT(*) unit_hari, COUNT(DISTINCT s.kendaraan_id) unit, COUNT(DISTINCT s.tanggal) hari, SUM(s.utilitas_jalan) uj')
             ->groupBy('j.nama')->orderBy('j.nama')->get();
 
-        return $rows->map(fn ($r) => ['jenis' => $r->jenis] + $this->formatAvailability((array) $r))->all();
+        $unit = $this->jumlahUnitPerJenis($f);
+
+        return $rows->map(fn ($r) => ['jenis' => $r->jenis, 'unit' => $unit[$r->jenis] ?? (int) $r->unit] + $this->formatAvailability((array) $r))->all();
     }
 
     /** UTILITAS (bar per bulan) & TREND LINES: rata-rata unit per hari per status. */
@@ -136,12 +177,14 @@ class DashboardService
                 SUM(s.utilitas_rusak) ur, COUNT(DISTINCT s.tanggal) hari, COUNT(DISTINCT s.kendaraan_id) unit')
             ->groupBy('j.nama')->orderBy('j.nama')->get();
 
-        return $rows->map(function ($r) {
+        $unit = $this->jumlahUnitPerJenis($f);
+
+        return $rows->map(function ($r) use ($unit) {
             $h = max(1, (int) $r->hari);
 
             return [
                 'jenis' => $r->jenis,
-                'unit' => (int) $r->unit,
+                'unit' => $unit[$r->jenis] ?? (int) $r->unit,
                 'hari' => (int) $r->hari,
                 'amount' => (int) $r->amount,
                 'jalan' => (int) $r->uj, 'standby' => (int) $r->us, 'rusak' => (int) $r->ur,
@@ -239,13 +282,16 @@ class DashboardService
                 COUNT(DISTINCT s.tanggal) hari, SUM(s.jalan) jalan, SUM(s.standby) standby, SUM(s.rusak) rusak,
                 SUM(s.perbaikan) perbaikan, SUM(s.pm) pm, SUM(s.utilitas_jalan) uj, SUM(s.utilitas_standby) us, SUM(s.utilitas_rusak) ur')
             ->groupBy('b.nama_tampil', 'b.urutan', 'j.nama')->orderBy('b.urutan')->orderBy('j.nama')->get();
+        $unit = $this->unitQuery($f)->join('bidang as b', 'b.id', '=', 'j.bidang_id')
+            ->selectRaw('b.nama_tampil bn, j.nama jn, COUNT(*) c')->groupBy('b.nama_tampil', 'j.nama')->get()
+            ->mapWithKeys(fn ($r) => [$r->bn.'|'.$r->jn => (int) $r->c]);
 
-        return $rows->map(function ($r) {
+        return $rows->map(function ($r) use ($unit) {
             $total = $r->jalan + $r->standby + $r->rusak + $r->perbaikan + $r->pm;
             $h = max(1, (int) $r->hari);
 
             return [
-                'bidang' => $r->bidang, 'jenis' => $r->jenis, 'unit' => (int) $r->unit, 'unit_hari' => (int) $r->unit_hari,
+                'bidang' => $r->bidang, 'jenis' => $r->jenis, 'unit' => $unit[$r->bidang.'|'.$r->jenis] ?? (int) $r->unit, 'unit_hari' => (int) $r->unit_hari,
                 'hari' => (int) $r->hari,
                 'jalan' => (int) $r->jalan, 'standby' => (int) $r->standby, 'rusak' => (int) $r->rusak,
                 'perbaikan' => (int) $r->perbaikan, 'pm' => (int) $r->pm, 'total_jam' => (int) $total,
@@ -269,13 +315,7 @@ class DashboardService
             ->selectRaw('bidang_id, COUNT(*) c, SUM(CASE WHEN otomatis = 0 THEN 1 ELSE 0 END) d')->groupBy('bidang_id')->get()
             ->mapWithKeys(fn ($r) => [$r->bidang_id => (int) $r->d > 0 ? (int) $r->c : 0]);
 
-        $aktif = DB::table('kendaraan as k')->join('jenis_kendaraan as j', 'j.id', '=', 'k.jenis_kendaraan_id')
-            ->where('k.is_active', true)->selectRaw('j.bidang_id, COUNT(*) c')->groupBy('j.bidang_id')->pluck('c', 'bidang_id');
-
-        $terakhirInput = DB::table('sheet_data')->where('otomatis', false)->selectRaw('bidang_id, MAX(tanggal) t, MAX(updated_at) u')
-            ->groupBy('bidang_id')->get()->keyBy('bidang_id');
-
-        return Bidang::ordered()->map(function (Bidang $b) use ($agg, $terisi, $aktif, $terakhirInput) {
+        return Bidang::ordered()->map(function (Bidang $b) use ($f, $agg, $terisi) {
             $a = $agg[$b->id] ?? null;
             $hari = max(1, (int) ($a->hari ?? 0));
 
@@ -286,37 +326,10 @@ class DashboardService
                 'avg_jalan' => $a ? round($a->uj / $hari, 1) : null,
                 'utilisasi' => ($a && $a->unit_hari > 0) ? round($a->uj / $a->unit_hari * 100, 1) : null,
                 'perbaikan' => (int) ($a->perbaikan ?? 0),
-                'unit_aktif' => (int) ($aktif[$b->id] ?? 0),
+                // Sama dengan KPI "Jumlah unit": seluruh unit yang beroperasi pada periode itu.
+                'unit' => $this->jumlahUnit($f, $b->id),
                 'terisi' => (int) ($terisi[$b->id] ?? 0),
-                'tanggal_terakhir' => $terakhirInput[$b->id]->t ?? null,
-                'diperbarui' => $terakhirInput[$b->id]->u ?? null,
             ];
-        })->all();
-    }
-
-    /**
-     * Isian "kosong" satu bulan per bidang: tanggal yang punya data tetapi tidak ada satu unit pun
-     * yang tercatat Jalan atau Rusak — tanda kolom bagian Bidang belum diisi.
-     *
-     * @return array<string, array{tanggal_data:int, tanggal_kosong:int, contoh:string[]}>
-     */
-    public function isianKosongBulan(int $tahun, int $bulan): array
-    {
-        $per = DB::table('sheet_data as s')
-            ->whereBetween('s.tanggal', [sprintf('%04d-%02d-01', $tahun, $bulan), \Carbon\CarbonImmutable::create($tahun, $bulan, 1)->endOfMonth()->toDateString()])
-            ->selectRaw('s.bidang_id, s.tanggal, COUNT(*) n, SUM(CASE WHEN s.jalan = 0 AND s.rusak = 0 THEN 1 ELSE 0 END) k, SUM(CASE WHEN s.otomatis = 0 THEN 1 ELSE 0 END) d')
-            ->groupBy('s.bidang_id', 's.tanggal')->orderBy('s.tanggal')->get()->groupBy('bidang_id');
-
-        return Bidang::ordered()->mapWithKeys(function (Bidang $b) use ($per) {
-            // Tanggal yang belum disimpan petugas (hanya baris otomatis) = belum diisi, bukan isian kosong.
-            $rows = $per->get($b->id, collect())->filter(fn ($r) => (int) $r->d > 0);
-            $kosong = $rows->filter(fn ($r) => (int) $r->n > 0 && (int) $r->k === (int) $r->n);
-
-            return [$b->kode => [
-                'tanggal_data' => $rows->count(),
-                'tanggal_kosong' => $kosong->count(),
-                'contoh' => $kosong->take(5)->map(fn ($r) => (int) substr((string) $r->tanggal, 8, 2))->values()->all(),
-            ]];
         })->all();
     }
 
@@ -411,7 +424,8 @@ class DashboardService
         $hasil = [];
         foreach ($kelengkapan as $periode => $k) {
             $r = $perPeriode->get($periode) ?? ['periode' => $periode, 'jalan' => null, 'standby' => null, 'rusak' => null, 'hari' => 0, 'unit_hari' => 0];
-            $hasil[] = $r + ['unit' => $k['unit'], 'terisi' => $k['terisi'], 'lengkap' => $k['terisi'] >= $k['unit']];
+            // Hanya melengkapi sumbu tanggal (tanggal tanpa data tetap tampil kosong).
+            $hasil[] = $r;
             $perPeriode->forget($periode);
         }
         // Data di luar rentang kelengkapan (mis. tanggal ke depan) tetap ditampilkan apa adanya.
@@ -478,11 +492,17 @@ class DashboardService
                 ->selectRaw('j.bidang_id, COUNT(*) unit, COUNT(s.id) terisi, SUM(CASE WHEN s.otomatis = 0 THEN 1 ELSE 0 END) diisi,
                     SUM(CASE WHEN s.jalan = 0 AND s.rusak = 0 THEN 1 ELSE 0 END) tanpa_jr')
                 ->groupBy('j.bidang_id')->get()->keyBy('bidang_id');
+            // Update terakhir petugas per bidang pada tanggal itu (baris otomatis tidak dihitung).
+            $update = DB::table('sheet_data as s')->leftJoin('users as u', 'u.id', '=', 's.updated_by')
+                ->where('s.tanggal', $t)->where('s.otomatis', false)
+                ->orderByDesc('s.updated_at')->get(['s.bidang_id', 's.updated_at', 's.updated_by', 'u.name'])
+                ->unique('bidang_id')->keyBy('bidang_id');
 
             $hasil[] = [
                 'tanggal' => $t,
-                'bidang' => $bidang->map(function (Bidang $b) use ($q, $user) {
+                'bidang' => $bidang->map(function (Bidang $b) use ($q, $update, $user) {
                     $r = $q->get($b->id);
+                    $u = $update->get($b->id);
                     $unit = (int) ($r->unit ?? 0);
                     // Bidang yang belum disimpan petugas sama sekali (hanya baris otomatis Standby) = belum diisi.
                     $diisi = (int) ($r->diisi ?? 0);
@@ -500,6 +520,8 @@ class DashboardService
                         // tanpa diisi (semua Standby 24 jam) maupun baris yang hanya diisi Perbaikan/PM.
                         'tanpa_jalan_rusak' => $tanpaJr,
                         'curiga_kosong' => $terisi > 0 && $tanpaJr === $terisi,
+                        'terakhir' => $u?->updated_at ? substr((string) $u->updated_at, 0, 19) : null,
+                        'oleh' => $u ? ($u->name ?? ($u->updated_by ? null : 'DMS lama')) : null,
                         'bisa_input' => $user ? $user->canInput($b) : false,
                     ];
                 })->values()->all(),
@@ -509,47 +531,4 @@ class DashboardService
         return $hasil;
     }
 
-    /**
-     * Kelengkapan satu bulan per bidang: unit-hari yang seharusnya diisi (dari periode aktif tiap
-     * kendaraan, s.d. hari ini) dibanding unit-hari yang sudah terisi.
-     */
-    public function kelengkapanBulan(int $tahun, int $bulan): array
-    {
-        $awal = \Carbon\CarbonImmutable::create($tahun, $bulan, 1)->startOfDay();
-        $akhir = $awal->endOfMonth()->startOfDay();
-        $hariIni = \Carbon\CarbonImmutable::today();
-        if ($akhir->greaterThan($hariIni)) {
-            $akhir = $hariIni;
-        }
-        $seharusnya = [];
-        if ($awal->lessThanOrEqualTo($akhir)) {
-            $kendaraan = DB::table('kendaraan as k')->join('jenis_kendaraan as j', 'j.id', '=', 'k.jenis_kendaraan_id')
-                ->select('j.bidang_id', 'k.aktif_sejak', 'k.nonaktif_sejak')->get();
-            foreach ($kendaraan as $k) {
-                $mulai = $k->aktif_sejak ? \Carbon\CarbonImmutable::parse($k->aktif_sejak)->startOfDay() : $awal;
-                $mulai = $mulai->greaterThan($awal) ? $mulai : $awal;
-                // nonaktif_sejak = hari pertama tidak beroperasi
-                $selesai = $k->nonaktif_sejak ? \Carbon\CarbonImmutable::parse($k->nonaktif_sejak)->startOfDay()->subDay() : $akhir;
-                $selesai = $selesai->lessThan($akhir) ? $selesai : $akhir;
-                if ($selesai->greaterThanOrEqualTo($mulai)) {
-                    $seharusnya[$k->bidang_id] = ($seharusnya[$k->bidang_id] ?? 0) + (int) $mulai->diffInDays($selesai) + 1;
-                }
-            }
-        }
-        // Tanggal yang hanya berisi baris otomatis (belum disimpan petugas) dihitung belum terisi.
-        $terisi = DB::table('sheet_data')->whereBetween('tanggal', [$awal->toDateString(), $awal->endOfMonth()->toDateString()])
-            ->selectRaw('bidang_id, tanggal, COUNT(*) c, SUM(CASE WHEN otomatis = 0 THEN 1 ELSE 0 END) d')->groupBy('bidang_id', 'tanggal')->get()
-            ->filter(fn ($r) => (int) $r->d > 0)->groupBy('bidang_id')->map(fn ($g) => $g->sum('c'));
-
-        return Bidang::ordered()->mapWithKeys(function (Bidang $b) use ($seharusnya, $terisi) {
-            $harus = (int) ($seharusnya[$b->id] ?? 0);
-            $isi = (int) ($terisi[$b->id] ?? 0);
-
-            return [$b->kode => [
-                'seharusnya' => $harus,
-                'terisi' => $isi,
-                'persen' => $harus > 0 ? round(min($isi, $harus) / $harus * 100, 1) : null,
-            ]];
-        })->all();
-    }
 }
